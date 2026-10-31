@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eero Mesh Network Optimization Dashboard</title>
+    <!-- Tailwind CSS (Play CDN) for modern dark-mode styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: ui-sans-serif, system-ui, sans-serif;
+        }
+        /* Stop the page from scrolling while dragging a node on touch screens */
+        #mappingCanvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen md:h-screen flex flex-col md:overflow-hidden">
+
+    <!-- Header Navigation -->
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex items-center justify-between shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 p-2 rounded-lg text-white font-bold text-xl tracking-wider">e</div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight">Eero Mesh Network Mapper</h1>
+                <p class="text-xs text-slate-400">3-Story Signal &amp; Distance Optimization Dashboard</p>
+            </div>
+        </div>
+        <div class="hidden sm:flex items-center space-x-2 text-xs bg-slate-800 px-3 py-1.5 rounded-md border border-slate-700">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span class="text-slate-300 font-medium">Local Simulator Active</span>
+        </div>
+    </header>
+
+    <!-- Main Content Workspace -->
+    <div class="flex flex-col md:flex-row flex-1 md:overflow-hidden">
+
+        <!-- Sidebar Controls & Metrics -->
+        <aside class="w-full md:w-80 bg-slate-900 border-b md:border-b-0 md:border-r border-slate-800 p-6 flex flex-col justify-between gap-6 md:overflow-y-auto">
+            <div class="space-y-6">
+                <!-- Floor Selection -->
+                <div>
+                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-3">House Level Selector</span>
+                    <div class="grid grid-cols-3 md:grid-cols-1 gap-2" id="floorControls">
+                        <button type="button" data-floor="3" class="w-full text-left px-4 py-3 rounded-lg border font-medium text-sm transition-all duration-200">
+                            Floor 3 <span class="text-xs block font-normal">Upper Level</span>
+                        </button>
+                        <button type="button" data-floor="2" class="w-full text-left px-4 py-3 rounded-lg border font-medium text-sm transition-all duration-200">
+                            Floor 2 <span class="text-xs block font-normal">Mid Level</span>
+                        </button>
+                        <button type="button" data-floor="1" class="w-full text-left px-4 py-3 rounded-lg border font-medium text-sm transition-all duration-200">
+                            Floor 1 <span class="text-xs block font-normal">Main Gateway Level</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Node Floor Assignment -->
+                <div class="border-t border-slate-800 pt-5">
+                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-3">Node Floor Assignment</span>
+                    <div id="nodeFloorControls" class="space-y-2">
+                        <!-- One dropdown per node, built by the script -->
+                    </div>
+                </div>
+
+                <!-- Live Network Insights -->
+                <div class="border-t border-slate-800 pt-5">
+                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-3">Live Performance Metrics</span>
+                    <div class="space-y-3">
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <div class="text-xs text-slate-400">Est. Network Speed</div>
+                            <div class="text-2xl font-black text-slate-100 mt-1" id="networkSpeed">-- <span class="text-sm font-normal text-slate-400">Mbps</span></div>
+                        </div>
+                        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 shadow-inner">
+                            <div class="text-xs text-slate-400">Node Proximity Status</div>
+                            <div class="mt-2 flex items-center space-x-2" id="networkStatus">
+                                <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
+                                <span class="text-sm font-semibold text-slate-400">Calculating…</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Distance Diagnostic Logs -->
+                <div class="border-t border-slate-800 pt-5">
+                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-2">Distance Diagnostic Logs</span>
+                    <div id="diagnosticLogs" class="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
+                        <!-- Diagnostics are inserted here by the script -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interaction Notice -->
+            <div class="text-xs text-slate-500 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 text-center leading-relaxed">
+                ℹ️ Drag any node on the current floor to move it. Faded nodes are on other floors. The dashed blue ring is the 40 ft range on the same floor.
+            </div>
+        </aside>
+
+        <!-- Visual Mapping Canvas -->
+        <main class="flex-1 bg-slate-950 relative flex items-center justify-center p-4 md:p-6 min-h-[360px]">
+            <div class="relative bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-2xl w-full max-w-4xl h-[420px] md:h-auto md:max-h-full md:aspect-[16/10] flex flex-col">
+                <div class="flex items-center justify-between mb-3 px-2 gap-2">
+                    <span class="text-sm font-bold tracking-wide text-slate-300" id="canvasFloorTitle">Floor 1 Blueprint Layout</span>
+                    <span class="text-xs text-slate-500 font-mono tracking-tight">Grid: 5 ft squares · Units: inches</span>
+                </div>
+                <div class="flex-1 relative bg-slate-950 rounded-xl border border-slate-800/80 overflow-hidden shadow-inner">
+                    <canvas id="mappingCanvas" class="absolute inset-0 w-full h-full block"></canvas>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Application Script Logic -->
+    <script>
+        // ---------------------------------------------------------------
+        // Configuration: every distance below is in INCHES
+        // ---------------------------------------------------------------
+        const HOUSE_WIDTH_IN = 600;   // 50 ft wide floor plan
+        const HOUSE_DEPTH_IN = 360;   // 30 ft deep floor plan
+        const FLOOR_HEIGHT_IN = 120;  // 10 ft per story
+        const OPTIMAL_MIN_IN = 180;   // 15 ft minimum spacing guideline
+        const OPTIMAL_MAX_IN = 480;   // 40 ft maximum range guideline
+        const BASE_SPEED_MBPS = 500;  // Mock internet plan speed
+        const NODE_RADIUS_PX = 16;
+        const FLOORS = [1, 2, 3];
+
+        const STATUS_UI = {
+            OPTIMAL: { color: '#10b981', dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'Optimal Placement', message: 'Signal Stable' },
+            CLOSE:   { color: '#f59e0b', dot: 'bg-amber-500',   text: 'text-amber-400',   label: 'Nodes Too Close',   message: 'Overlapped - Too Close' },
+            FAR:     { color: '#f43f5e', dot: 'bg-rose-500',    text: 'text-rose-400',    label: 'Node Out of Range', message: 'Signal Weak - Too Far' }
+        };
+        const GATEWAY_COLOR = '#2563eb';
+
+        // Node positions are stored in inches inside the floor plan,
+        // so they stay correct whatever size the canvas is.
+        const nodes = [
+            { id: 'Primary Gateway', x: 180, y: 200, floor: 1, isGateway: true },
+            { id: 'Node 2',          x: 420, y: 160, floor: 1, isGateway: false },
+            { id: 'Node 3',          x: 300, y: 300, floor: 2, isGateway: false }
+        ];
+
+        // ---------------------------------------------------------------
+        // State and DOM references
+        // ---------------------------------------------------------------
+        const canvas = document.getElementById('mappingCanvas');
+        const ctx = canvas.getContext('2d');
+        const speedEl = document.getElementById('networkSpeed');
+        const statusEl = document.getElementById('networkStatus');
+        const logsEl = document.getElementById('diagnosticLogs');
+        const floorTitleEl = document.getElementById('canvasFloorTitle');
+
+        let currentFloor = 1;
+        let draggingNode = null;
+        let hoverNode = null;
+
+        // How inches map to canvas pixels (recalculated on every resize)
+        const view = { scale: 1, offsetX: 0, offsetY: 0, width: 0, height: 0 };
+
+        // ---------------------------------------------------------------
+        // Helpers
+        // ---------------------------------------------------------------
+        function clamp(value, min, max) {
+            return Math.max(min, Math.min(max, value));
+        }
+
+        function toCanvas(node) {
+            return {
+                x: view.offsetX + node.x * view.scale,
+                y: view.offsetY + node.y * view.scale
+            };
+        }
+
+        function toInches(px, py) {
+            return {
+                x: (px - view.offsetX) / view.scale,
+                y: (py - view.offsetY) / view.scale
+            };
+        }
+
+        // Straight-line 3D distance, including the height between floors
+        function distanceInches(a, b) {
+            const dx = a.x - b.x;
+            const dy = a.y - b.y;
+            const dz = (a.floor - b.floor) * FLOOR_HEIGHT_IN;
+            return Math.sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        function formatFeet(inches) {
+            return `${(inches / 12).toFixed(1)} ft`;
+        }
+
+        // ---------------------------------------------------------------
+        // Network analysis
+        // ---------------------------------------------------------------
+        function analyzeNetwork() {
+            const gateway = nodes.find(n => n.isGateway);
+
+            // Breadth-first search: which nodes can reach the gateway
+            // through links that are within range, and in how many hops
+            const hops = new Map([[gateway, 0]]);
+            const queue = [gateway];
+            while (queue.length > 0) {
+                const current = queue.shift();
+                for (const other of nodes) {
+                    if (!hops.has(other) && distanceInches(current, other) <= OPTIMAL_MAX_IN) {
+                        hops.set(other, hops.get(current) + 1);
+                        queue.push(other);
+                    }
+                }
+            }
+
+            const results = nodes.map(node => {
+                let nearest = null;
+                let nearestDist = Infinity;
+                for (const other of nodes) {
+                    if (other === node) continue;
+                    const d = distanceInches(node, other);
+                    if (d < nearestDist) {
+                        nearestDist = d;
+                        nearest = other;
+                    }
+                }
+
+                let status = 'OPTIMAL';
+                if (node.isGateway) {
+                    status = 'GATEWAY';
+                } else if (!hops.has(node)) {
+                    status = 'FAR';
+                } else if (nearestDist < OPTIMAL_MIN_IN) {
+                    status = 'CLOSE';
+                }
+
+                return { node, nearest, nearestDist, hops: hops.get(node), status };
+            });
+
+            let speed = BASE_SPEED_MBPS;
+            for (const r of results) {
+                if (r.status === 'FAR') speed -= 150;
+                if (r.status === 'CLOSE') speed -= 75;
+                if (r.hops > 1) speed -= 50 * (r.hops - 1); // each extra wireless hop costs backhaul
+            }
+
+            let worst = 'OPTIMAL';
+            if (results.some(r => r.status === 'FAR')) worst = 'FAR';
+            else if (results.some(r => r.status === 'CLOSE')) worst = 'CLOSE';
+
+            return {
+                results,
+                byNode: new Map(results.map(r => [r.node, r])),
+                speed: clamp(speed, 0, BASE_SPEED_MBPS),
+                worst
+            };
+        }
+
+        // ---------------------------------------------------------------
+        // Sidebar updates
+        // ---------------------------------------------------------------
+        function updateSidebar(analysis) {
+            speedEl.innerHTML = `${analysis.speed} <span class="text-sm font-normal text-slate-400">Mbps</span>`;
+
+            const ui = STATUS_UI[analysis.worst];
+            statusEl.innerHTML = `
+                <span class="w-2.5 h-2.5 rounded-full ${ui.dot}"></span>
+                <span class="text-sm font-semibold ${ui.text}">${ui.label}</span>`;
+
+            const relevant = analysis.results.filter(r =>
+                r.status !== 'GATEWAY' &&
+                r.nearest &&
+                (r.node.floor === currentFloor || r.nearest.floor === currentFloor)
+            );
+
+            if (relevant.length === 0) {
+                logsEl.innerHTML = `<div class="text-slate-500 italic p-2">No satellite nodes linked to Floor ${currentFloor}.</div>`;
+                return;
+            }
+
+            logsEl.innerHTML = relevant.map(r => {
+                const rowUi = STATUS_UI[r.status];
+                const floorsApart = Math.abs(r.node.floor - r.nearest.floor);
+                const hopsText = r.hops ? `${r.hops} hop${r.hops > 1 ? 's' : ''} to gateway` : 'No path to gateway';
+                return `
+                    <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 flex flex-col gap-1 shadow-sm">
+                        <div class="flex justify-between font-medium text-slate-300">
+                            <span>${r.node.id} ↔ ${r.nearest.id}</span>
+                            <span class="${rowUi.text} font-bold">${Math.round(r.nearestDist)} in</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500 flex justify-between">
+                            <span class="${rowUi.text}">${rowUi.message}</span>
+                            <span>${formatFeet(r.nearestDist)} · ${floorsApart} floor${floorsApart === 1 ? '' : 's'} apart</span>
+                        </div>
+                        <div class="text-[10px] text-slate-500">${hopsText}</div>
+                    </div>`;
+            }).join('');
+        }
+
+        // ---------------------------------------------------------------
+        // Canvas drawing
+        // ---------------------------------------------------------------
+        function drawGrid() {
+            const w = HOUSE_WIDTH_IN * view.scale;
+            const h = HOUSE_DEPTH_IN * view.scale;
+
+            ctx.fillStyle = '#0b1220';
+            ctx.fillRect(view.offsetX, view.offsetY, w, h);
+
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= HOUSE_WIDTH_IN; i += 60) {
+                const x = view.offsetX + i * view.scale;
+                ctx.strokeStyle = i % 120 === 0 ? 'rgba(148,163,184,0.18)' : 'rgba(148,163,184,0.07)';
+                ctx.beginPath();
+                ctx.moveTo(x, view.offsetY);
+                ctx.lineTo(x, view.offsetY + h);
+                ctx.stroke();
+            }
+            for (let i = 0; i <= HOUSE_DEPTH_IN; i += 60) {
+                const y = view.offsetY + i * view.scale;
+                ctx.strokeStyle = i % 120 === 0 ? 'rgba(148,163,184,0.18)' : 'rgba(148,163,184,0.07)';
+                ctx.beginPath();
+                ctx.moveTo(view.offsetX, y);
+                ctx.lineTo(view.offsetX + w, y);
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(view.offsetX, view.offsetY, w, h);
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = '10px ui-monospace, monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            // Label every 10 ft, or every 20 ft when the plan is drawn small
+            const labelStep = 120 * view.scale < 40 ? 240 : 120;
+            for (let i = labelStep; i < HOUSE_WIDTH_IN; i += labelStep) {
+                ctx.fillText(`${i / 12} ft`, view.offsetX + i * view.scale + 3, view.offsetY + 3);
+            }
+        }
+
+        function drawRangeRings() {
+            const w = HOUSE_WIDTH_IN * view.scale;
+            const h = HOUSE_DEPTH_IN * view.scale;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(view.offsetX, view.offsetY, w, h);
+            ctx.clip();
+
+            for (const node of nodes) {
+                if (node.floor !== currentFloor) continue;
+                const c = toCanvas(node);
+                const active = node === draggingNode || node === hoverNode;
+
+                ctx.setLineDash([6, 6]);
+                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = active ? 'rgba(59,130,246,0.55)' : 'rgba(59,130,246,0.2)';
+                ctx.fillStyle = active ? 'rgba(59,130,246,0.06)' : 'rgba(59,130,246,0.025)';
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, OPTIMAL_MAX_IN * view.scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                if (active) {
+                    ctx.strokeStyle = 'rgba(245,158,11,0.45)';
+                    ctx.beginPath();
+                    ctx.arc(c.x, c.y, OPTIMAL_MIN_IN * view.scale, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+        }
+
+        function drawDistanceLabel(text, x, y, color) {
+            ctx.font = '10px ui-monospace, monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const width = ctx.measureText(text).width + 8;
+            ctx.fillStyle = 'rgba(2,6,23,0.85)';
+            ctx.fillRect(x - width / 2, y - 8, width, 16);
+            ctx.fillStyle = color;
+            ctx.fillText(text, x, y);
+        }
+
+        function drawLinks(analysis) {
+            ctx.save();
+            ctx.lineWidth = 2;
+
+            // Links that are within range (solid = same floor, dashed = across floors)
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const a = nodes[i];
+                    const b = nodes[j];
+                    if (a.floor !== currentFloor && b.floor !== currentFloor) continue;
+
+                    const d = distanceInches(a, b);
+                    if (d > OPTIMAL_MAX_IN) continue;
+
+                    const color = d < OPTIMAL_MIN_IN ? STATUS_UI.CLOSE.color : STATUS_UI.OPTIMAL.color;
+                    const ca = toCanvas(a);
+                    const cb = toCanvas(b);
+
+                    ctx.strokeStyle = color;
+                    ctx.globalAlpha = 0.75;
+                    ctx.setLineDash(a.floor === b.floor ? [] : [6, 6]);
+                    ctx.beginPath();
+                    ctx.moveTo(ca.x, ca.y);
+                    ctx.lineTo(cb.x, cb.y);
+                    ctx.stroke();
+
+                    ctx.globalAlpha = 1;
+                    ctx.setLineDash([]);
+                    drawDistanceLabel(formatFeet(d), (ca.x + cb.x) / 2, (ca.y + cb.y) / 2, color);
+                }
+            }
+
+            // Out-of-range satellites: red dotted line to their nearest node
+            for (const r of analysis.results) {
+                if (r.status !== 'FAR' || !r.nearest) continue;
+                if (r.node.floor !== currentFloor && r.nearest.floor !== currentFloor) continue;
+
+                const ca = toCanvas(r.node);
+                const cb = toCanvas(r.nearest);
+                ctx.strokeStyle = STATUS_UI.FAR.color;
+                ctx.globalAlpha = 0.8;
+                ctx.setLineDash([3, 6]);
+                ctx.beginPath();
+                ctx.moveTo(ca.x, ca.y);
+                ctx.lineTo(cb.x, cb.y);
+                ctx.stroke();
+
+                ctx.globalAlpha = 1;
+                ctx.setLineDash([]);
+                drawDistanceLabel(formatFeet(r.nearestDist), (ca.x + cb.x) / 2, (ca.y + cb.y) / 2, STATUS_UI.FAR.color);
+            }
+
+            ctx.restore();
+        }
+
+        function drawNode(node, result, ghost) {
+            const c = toCanvas(node);
+            const color = node.isGateway ? GATEWAY_COLOR : STATUS_UI[result.status].color;
+            const radius = ghost ? NODE_RADIUS_PX * 0.75 : NODE_RADIUS_PX;
+            const active = node === draggingNode || node === hoverNode;
+
+            ctx.save();
+            ctx.globalAlpha = ghost ? 0.35 : 1;
+
+            if (!ghost) {
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 18;
+            }
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(c.x, c.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.lineWidth = active ? 3 : 1.5;
+            ctx.strokeStyle = active ? '#f8fafc' : 'rgba(248,250,252,0.6)';
+            ctx.stroke();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${ghost ? 10 : 13}px ui-sans-serif, system-ui, sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.isGateway ? 'e' : String(nodes.indexOf(node) + 1), c.x, c.y + 1);
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '11px ui-sans-serif, system-ui, sans-serif';
+            ctx.textBaseline = 'top';
+            ctx.fillText(ghost ? `${node.id} (F${node.floor})` : node.id, c.x, c.y + radius + 6);
+
+            ctx.restore();
+        }
+
+        function drawDashboard() {
+            const analysis = analyzeNetwork();
+
+            ctx.clearRect(0, 0, view.width, view.height);
+            drawGrid();
+            drawRangeRings();
+            drawLinks(analysis);
+
+            // Other floors first (faded), then the current floor on top
+            for (const node of nodes) {
+                if (node.floor !== currentFloor) drawNode(node, analysis.byNode.get(node), true);
+            }
+            for (const node of nodes) {
+                if (node.floor === currentFloor) drawNode(node, analysis.byNode.get(node), false);
+            }
+
+            updateSidebar(analysis);
+        }
+
+        // ---------------------------------------------------------------
+        // Canvas sizing (sharp on high-DPI screens)
+        // ---------------------------------------------------------------
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+
+            canvas.width = Math.max(1, Math.round(rect.width * dpr));
+            canvas.height = Math.max(1, Math.round(rect.height * dpr));
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            view.width = rect.width;
+            view.height = rect.height;
+
+            const padding = 28;
+            view.scale = Math.max(0.01, Math.min(
+                (rect.width - padding * 2) / HOUSE_WIDTH_IN,
+                (rect.height - padding * 2) / HOUSE_DEPTH_IN
+            ));
+            view.offsetX = (rect.width - HOUSE_WIDTH_IN * view.scale) / 2;
+            view.offsetY = (rect.height - HOUSE_DEPTH_IN * view.scale) / 2;
+
+            drawDashboard();
+        }
+
+        // ---------------------------------------------------------------
+        // Dragging (mouse, pen and touch via Pointer Events)
+        // ---------------------------------------------------------------
+        function getPointer(evt) {
+            const rect = canvas.getBoundingClientRect();
+            return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+        }
+
+        function hitTest(point) {
+            for (let i = nodes.length - 1; i >= 0; i--) {
+                const node = nodes[i];
+                if (node.floor !== currentFloor) continue;
+                const c = toCanvas(node);
+                if (Math.hypot(c.x - point.x, c.y - point.y) <= NODE_RADIUS_PX + 4) return node;
+            }
+            return null;
+        }
+
+        canvas.addEventListener('pointerdown', evt => {
+            const node = hitTest(getPointer(evt));
+            if (!node) return;
+            draggingNode = node;
+            canvas.setPointerCapture(evt.pointerId);
+            canvas.style.cursor = 'grabbing';
+            drawDashboard();
+        });
+
+        canvas.addEventListener('pointermove', evt => {
+            const point = getPointer(evt);
+
+            if (draggingNode) {
+                const pos = toInches(point.x, point.y);
+                draggingNode.x = clamp(pos.x, 0, HOUSE_WIDTH_IN);
+                draggingNode.y = clamp(pos.y, 0, HOUSE_DEPTH_IN);
+                drawDashboard();
+                return;
+            }
+
+            const hovered = hitTest(point);
+            if (hovered !== hoverNode) {
+                hoverNode = hovered;
+                canvas.style.cursor = hovered ? 'grab' : 'crosshair';
+                drawDashboard();
+            }
+        });
+
+        function endDrag(evt) {
+            if (!draggingNode) return;
+            draggingNode = null;
+            if (canvas.hasPointerCapture(evt.pointerId)) canvas.releasePointerCapture(evt.pointerId);
+            canvas.style.cursor = hoverNode ? 'grab' : 'crosshair';
+            drawDashboard();
+        }
+
+        canvas.addEventListener('pointerup', endDrag);
+        canvas.addEventListener('pointercancel', endDrag);
+        canvas.addEventListener('pointerleave', () => {
+            if (draggingNode || !hoverNode) return;
+            hoverNode = null;
+            drawDashboard();
+        });
+
+        // ---------------------------------------------------------------
+        // Floor switching
+        // ---------------------------------------------------------------
+        const ACTIVE_BTN = ['bg-blue-600/20', 'border-blue-500', 'text-blue-400', 'shadow-lg', 'shadow-blue-900/20'];
+        const INACTIVE_BTN = ['bg-slate-800', 'border-slate-700', 'text-slate-300', 'hover:bg-slate-700'];
+
+        function switchFloor(floor) {
+            currentFloor = floor;
+            draggingNode = null;
+            hoverNode = null;
+
+            document.querySelectorAll('#floorControls [data-floor]').forEach(btn => {
+                const active = Number(btn.dataset.floor) === floor;
+                btn.classList.remove(...ACTIVE_BTN, ...INACTIVE_BTN);
+                btn.classList.add(...(active ? ACTIVE_BTN : INACTIVE_BTN));
+                btn.setAttribute('aria-pressed', String(active));
+
+                const subtitle = btn.querySelector('span');
+                subtitle.classList.toggle('text-blue-400/70', active);
+                subtitle.classList.toggle('text-slate-500', !active);
+            });
+
+            floorTitleEl.textContent = `Floor ${floor} Blueprint Layout`;
+            drawDashboard();
+        }
+
+        document.querySelectorAll('#floorControls [data-floor]').forEach(btn => {
+            btn.addEventListener('click', () => switchFloor(Number(btn.dataset.floor)));
+        });
+
+        // ---------------------------------------------------------------
+        // Node floor dropdowns
+        // ---------------------------------------------------------------
+        function buildNodeFloorControls() {
+            const container = document.getElementById('nodeFloorControls');
+
+            nodes.forEach(node => {
+                const row = document.createElement('label');
+                row.className = 'flex items-center justify-between text-sm text-slate-300';
+                row.textContent = node.id;
+
+                const select = document.createElement('select');
+                select.className = 'bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-xs text-slate-200';
+
+                FLOORS.forEach(floor => {
+                    const option = document.createElement('option');
+                    option.value = floor;
+                    option.textContent = `Floor ${floor}`;
+                    option.selected = node.floor === floor;
+                    select.appendChild(option);
+                });
+
+                select.addEventListener('change', () => {
+                    node.floor = Number(select.value);
+                    drawDashboard();
+                });
+
+                row.appendChild(select);
+                container.appendChild(row);
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Start up
+        // ---------------------------------------------------------------
+        buildNodeFloorControls();
+        switchFloor(1);
+        new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
+    </script>
+</body>
+</html>
