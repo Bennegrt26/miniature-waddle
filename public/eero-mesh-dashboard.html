@@ -1,0 +1,2534 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eero Mesh Studio</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+    body {
+      background-color: #020617;
+      color: #f1f5f9;
+      overscroll-behavior-y: none;
+    }
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+    #floorCanvas {
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    input[type=range] {
+      accent-color: #06b6d4;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans h-[100dvh] w-full overflow-hidden flex flex-col lg:flex-row">
+
+  <!-- ===================================================================== -->
+  <!-- HEADER, LIVE METRICS AND FLOOR PLAN                                   -->
+  <!-- ===================================================================== -->
+  <div class="flex-1 flex flex-col h-full min-h-0 relative overflow-hidden">
+
+    <!-- Top App Bar -->
+    <header class="bg-slate-900/95 backdrop-blur border-b border-slate-800 px-3 py-2 shrink-0 z-30">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 to-teal-400 flex items-center justify-center shadow-md shadow-cyan-500/20 shrink-0">
+            <svg class="w-4 h-4 text-slate-950 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"></path>
+            </svg>
+          </div>
+          <div class="truncate">
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-sm font-bold tracking-tight text-white truncate">eero Mesh Studio</h1>
+              <span id="syncStatusBadge" class="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400 border border-cyan-800/80 shrink-0">3 eeros</span>
+            </div>
+            <p class="text-[10px] text-slate-400 truncate hidden sm:block">Multi-floor eero placement and signal planner</p>
+          </div>
+        </div>
+
+        <!-- Visual Mode Switcher -->
+        <div class="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 text-[11px] shrink-0">
+          <button type="button" data-vmode="heatmap" class="vmode-btn px-2 py-1 rounded-md transition">Heat</button>
+          <button type="button" data-vmode="contours" class="vmode-btn px-2 py-1 rounded-md transition">Bands</button>
+          <button type="button" data-vmode="domains" class="vmode-btn px-2 py-1 rounded-md transition">Zones</button>
+          <button type="button" data-vmode="clean" class="vmode-btn px-2 py-1 rounded-md transition">Plan</button>
+        </div>
+      </div>
+
+      <!-- Coverage KPI Bar (current floor) -->
+      <div class="grid grid-cols-4 gap-1.5 mt-2">
+        <div class="bg-slate-950/90 border border-slate-800/90 rounded-lg px-2 py-1 flex flex-col justify-between">
+          <div class="flex items-center justify-between gap-1">
+            <span id="kpiFastLabel" class="text-[9px] uppercase font-semibold text-slate-400 truncate">F1 Fast ≥-65</span>
+            <span id="kpiDeltaFast" class="text-[9px] font-mono font-bold hidden"></span>
+          </div>
+          <span id="kpiFastPct" class="text-xs sm:text-sm font-bold font-mono text-emerald-400">--%</span>
+        </div>
+        <div class="bg-slate-950/90 border border-slate-800/90 rounded-lg px-2 py-1 flex flex-col justify-between">
+          <div class="flex items-center justify-between gap-1">
+            <span id="kpiUsableLabel" class="text-[9px] uppercase font-semibold text-slate-400 truncate">F1 Usable ≥-75</span>
+            <span id="kpiDeltaUsable" class="text-[9px] font-mono font-bold hidden"></span>
+          </div>
+          <span id="kpiUsablePct" class="text-xs sm:text-sm font-bold font-mono text-amber-300">--%</span>
+        </div>
+        <div class="bg-slate-950/90 border border-slate-800/90 rounded-lg px-2 py-1 flex flex-col justify-between">
+          <div class="flex items-center justify-between gap-1">
+            <span id="kpiDeadLabel" class="text-[9px] uppercase font-semibold text-slate-400 truncate">F1 Dead &lt;-75</span>
+            <span id="kpiDeltaDead" class="text-[9px] font-mono font-bold hidden"></span>
+          </div>
+          <span id="kpiDeadPct" class="text-xs sm:text-sm font-bold font-mono text-rose-400">--%</span>
+        </div>
+        <div class="bg-slate-950/90 border border-slate-800/90 rounded-lg px-2 py-1 flex flex-col justify-between">
+          <div class="flex items-center justify-between gap-1">
+            <span class="text-[9px] uppercase font-semibold text-slate-400 truncate">Backhaul</span>
+            <span id="backhaulDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          </div>
+          <span id="kpiBackhaulText" class="text-[11px] sm:text-xs font-bold font-mono text-cyan-300 truncate">--</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Interactive Floor Plan -->
+    <div id="canvasWrapper" class="relative flex-1 bg-slate-950 overflow-hidden min-h-[220px]">
+      <canvas id="floorCanvas" class="absolute inset-0 block"></canvas>
+
+      <!-- Interaction Mode Pill -->
+      <div class="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 backdrop-blur-md border border-slate-700/90 rounded-full p-1 shadow-xl flex items-center gap-1">
+        <button type="button" data-imode="drag" class="imode-btn flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M7 11.5V14m0-2.5v-6a1.5 1.5 0 113 0m-3 6a1.5 1.5 0 00-3 0v2a7.5 7.5 0 0015 0v-5a1.5 1.5 0 00-3 0m-6-3V11m0-5.5v-1a1.5 1.5 0 013 0v1m0 0V11m0-5.5a1.5 1.5 0 013 0v3m0 0V11"></path></svg>
+          <span>Move</span>
+        </button>
+        <button type="button" data-imode="inspect" class="imode-btn flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+          <span>Inspect</span>
+        </button>
+        <button type="button" data-imode="pin" class="imode-btn flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          <span>Add Reading</span>
+        </button>
+      </div>
+
+      <!-- Signal Inspector Card -->
+      <div id="signalInspectorCard" class="pointer-events-none absolute top-14 left-3 z-20 bg-slate-900/95 backdrop-blur border border-slate-700 rounded-xl p-2.5 shadow-2xl text-[11px] hidden min-w-[190px]">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-1 mb-1">
+          <span class="font-semibold text-slate-400 uppercase text-[9px]">Point Probe</span>
+          <span id="probeCoords" class="font-mono text-cyan-400 text-[10px]">F1 · 12.0', 10.0'</span>
+        </div>
+        <div class="space-y-0.5">
+          <div class="flex justify-between items-center gap-2">
+            <span class="text-slate-400">Est. signal</span>
+            <span id="probeRssi" class="font-mono font-bold text-emerald-400 text-xs">-54 dBm</span>
+          </div>
+          <div class="flex justify-between items-center gap-2">
+            <span class="text-slate-400">Strongest eero</span>
+            <span id="probeApName" class="font-semibold text-white truncate max-w-[110px]">Living Room</span>
+          </div>
+          <div class="flex justify-between items-center gap-2">
+            <span class="text-slate-400">Path</span>
+            <span id="probeDistWalls" class="font-mono text-slate-300">11.2' · 1 wall</span>
+          </div>
+          <div class="flex justify-between items-center gap-2 pt-0.5 border-t border-slate-800/80">
+            <span class="text-slate-400">Rough Wi-Fi rate</span>
+            <span id="probeThroughput" class="font-semibold text-emerald-400">650+ Mbps</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reading (pin) Editor -->
+      <div id="pinEditorPopover" class="absolute bottom-3 right-3 z-30 bg-slate-900/95 backdrop-blur-md border border-cyan-500/60 rounded-xl p-3 shadow-2xl w-64 max-w-[calc(100%-1.5rem)] hidden">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-bold text-cyan-400">Signal Reading</span>
+          <button type="button" id="closePinPopoverBtn" class="text-slate-400 hover:text-white p-0.5" aria-label="Close reading editor">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+        </div>
+        <p class="text-[10px] text-slate-400 mb-2">Stand at <span id="pinCoordLabel" class="font-mono text-slate-200">F1 · 20', 15'</span> and type the dBm your Wi-Fi analyzer app shows.</p>
+        <label class="block text-[10px] text-slate-400 mb-1" for="pinNodeSelect">Phone connected to</label>
+        <select id="pinNodeSelect" class="w-full mb-2 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"></select>
+        <div class="flex items-center gap-1.5 mb-2">
+          <button type="button" id="pinStepMinus" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold text-slate-200 border border-slate-700 active:scale-95" aria-label="Lower reading by 1 dB">-1</button>
+          <div class="relative flex-1">
+            <input type="number" id="pinMeasuredInput" min="-100" max="-10" step="1" placeholder="e.g. -62" inputmode="numeric" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-center font-mono text-xs font-bold text-cyan-300 focus:outline-none focus:border-cyan-500" aria-label="Measured signal in dBm">
+            <span class="absolute right-2 top-1.5 text-[10px] text-slate-500 font-mono pointer-events-none">dBm</span>
+          </div>
+          <button type="button" id="pinStepPlus" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold text-slate-200 border border-slate-700 active:scale-95" aria-label="Raise reading by 1 dB">+1</button>
+        </div>
+        <div class="flex items-center justify-between text-[10px] text-slate-400 mb-2.5 bg-slate-950 px-2 py-1 rounded">
+          <span>Model predicts <strong id="pinSimValue" class="font-mono text-slate-200">-62 dBm</strong></span>
+          <span id="pinErrorBadge" class="font-mono text-slate-500">—</span>
+        </div>
+        <div class="flex gap-1.5">
+          <button type="button" id="autoTuneFromPopoverBtn" class="flex-1 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-[11px] transition">Fit Model to Readings</button>
+          <button type="button" id="deleteActivePinBtn" class="px-2.5 py-1.5 rounded-lg bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-800/60 text-[11px] font-medium">Delete</button>
+        </div>
+      </div>
+
+      <!-- Floor Switcher -->
+      <div id="floorSwitcher" class="absolute bottom-2.5 left-2.5 z-20 bg-slate-900/95 backdrop-blur border border-slate-700 rounded-full p-1 shadow-xl flex items-center gap-1" role="group" aria-label="Floor"></div>
+
+      <!-- Signal Legend -->
+      <div class="pointer-events-none absolute bottom-2.5 right-2.5 z-10 bg-slate-900/85 backdrop-blur border border-slate-800 rounded-lg px-2 py-1 flex items-center gap-1.5 text-[9px] font-mono text-slate-300">
+        <span>-45</span>
+        <div class="w-14 h-2 rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-600"></div>
+        <span>-85 dBm</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- CONTROL DRAWER (bottom sheet on phones, side panel on desktop)        -->
+  <!-- ===================================================================== -->
+  <aside id="controlDrawer" class="w-full lg:w-[430px] xl:w-[460px] bg-slate-900 border-t lg:border-t-0 lg:border-l border-slate-800 flex flex-col shrink-0 z-30 transition-all duration-200 h-[48dvh] lg:h-full">
+
+    <button type="button" id="drawerHandleBar" class="lg:hidden flex items-center justify-between px-3 py-1.5 bg-slate-900 border-b border-slate-800/80 w-full" aria-label="Resize controls panel">
+      <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Controls</span>
+      <span class="w-10 h-1 rounded-full bg-slate-700"></span>
+      <span class="px-2 py-0.5 rounded bg-slate-800 text-[10px] text-cyan-400 font-medium border border-slate-700">Resize</span>
+    </button>
+
+    <!-- Tabs -->
+    <nav class="grid grid-cols-4 bg-slate-950 p-1 border-b border-slate-800 shrink-0 gap-1">
+      <button type="button" data-tab="nodes" class="drawer-tab-btn py-2 px-1 rounded-lg text-xs flex items-center justify-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+        <span>Units</span>
+      </button>
+      <button type="button" data-tab="sync" class="drawer-tab-btn py-2 px-1 rounded-lg text-xs flex items-center justify-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 shrink-0 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+        <span>Import</span>
+      </button>
+      <button type="button" data-tab="calibrate" class="drawer-tab-btn py-2 px-1 rounded-lg text-xs flex items-center justify-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 shrink-0 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+        <span>House</span>
+      </button>
+      <button type="button" data-tab="compare" class="drawer-tab-btn py-2 px-1 rounded-lg text-xs flex items-center justify-center gap-1.5 transition">
+        <svg class="w-3.5 h-3.5 shrink-0 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+        <span>Compare</span>
+      </button>
+    </nav>
+
+    <div class="flex-1 overflow-y-auto p-3 space-y-3">
+
+      <!-- TAB 1: UNITS -->
+      <div id="tab-nodes" class="tab-pane space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Your eero Units</h2>
+            <p class="text-[11px] text-slate-400">Drag on the map, or type positions in feet from the left wall and the back wall</p>
+          </div>
+          <button type="button" id="addNodeBtn" class="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-sm active:scale-95 transition shrink-0">
+            <svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
+            <span>Add eero</span>
+          </button>
+        </div>
+        <div id="exampleBanner" class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/40 text-[11px] text-amber-200 leading-relaxed">
+          These are example units. Rename them and enter where yours really are, or import your real units from the Import tab.
+        </div>
+        <div id="nodeCardsList" class="space-y-2.5"></div>
+      </div>
+
+      <!-- TAB 2: IMPORT FROM EERO (TERMUX) -->
+      <div id="tab-sync" class="tab-pane hidden space-y-3">
+        <div class="p-3 rounded-xl bg-gradient-to-br from-emerald-950/60 to-slate-900 border border-emerald-700/50">
+          <h3 class="text-sm font-bold text-white">Import your real units with Termux</h3>
+          <p class="text-[11px] text-slate-300 mt-1 leading-relaxed">
+            Brings in each unit's room name, model, MAC address and wired/wireless status. eero doesn't store where units physically are, so positions stay as you set them on the map. Units already on the map keep their position when the name or MAC matches.
+          </p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <span class="text-xs font-bold text-white">Steps</span>
+          <ol class="list-decimal pl-4 space-y-1 text-[11px] text-slate-400 leading-relaxed">
+            <li>Install Termux from F-Droid.</li>
+            <li>In Termux, run <code class="text-emerald-300">termux-setup-storage</code> once and tap Allow, so the file can be saved to Downloads.</li>
+            <li>Copy the command below, paste it into Termux and follow the prompts. eero sends you a login code.</li>
+            <li>Choose the saved file below, or paste the JSON it prints.</li>
+          </ol>
+          <p class="text-[10px] text-amber-300/90 leading-relaxed">If the install stops with an error about <code>pydantic-core</code>, run <code>pkg install rust</code> and try again (the build can take a while). The same command also works on a computer with Python 3.12 or newer. It uses <code>eero-api</code>, an unofficial package that keeps a login token on the device.</p>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-white">Termux command</span>
+            <button type="button" id="copyTermuxCmdBtn" class="px-2.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-[11px] flex items-center gap-1 shrink-0 active:scale-95 transition">
+              <span id="copyTermuxBtnText">Copy Command</span>
+            </button>
+          </div>
+          <pre id="termuxScriptBlock" class="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-[10px] font-mono text-emerald-300 overflow-x-auto leading-relaxed select-all">pkg update -y &amp;&amp; pkg install python -y &amp;&amp; pip install eero-api==8.4.1 &amp;&amp; python -c '
+import asyncio, json
+
+from eero import EeroClient
+
+async def main():
+    async with EeroClient() as c:
+        if not c.is_authenticated:
+            await c.login(input("eero email or phone: "))
+            await c.verify(input("Verification code: "))
+        resp = await c.get_eeros()
+        eeros = resp.get("data") or []
+        if not eeros:
+            print("No eero units found on this account.")
+            return
+        print("Fields:", sorted(eeros[0].keys()))
+        out = [{
+            "name": e.get("location") or "eero",
+            "model": e.get("model") or "",
+            "gateway": bool(e.get("gateway")),
+            "wired": bool(e.get("wired") or e.get("is_wired") or str(e.get("connection_type") or "").lower() == "wired"),
+            "status": e.get("status") or "green",
+            "mac": e.get("mac_address") or e.get("mac") or e.get("serial") or ""
+        } for e in eeros]
+        js = json.dumps(out, indent=2)
+        print("\n--- COPY JSON BELOW ---\n" + js + "\n-----------------------")
+        dl = "/sdcard/Download/eero_nodes.json"
+        try:
+            with open(dl, "w") as f:
+                f.write(js)
+            print("Saved to " + dl)
+        except OSError:
+            with open("eero_nodes.json", "w") as f:
+                f.write(js)
+            print("Saved to ./eero_nodes.json")
+
+asyncio.run(main())
+'</pre>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <span class="text-xs font-bold text-white">Load <code class="text-cyan-400 font-mono">eero_nodes.json</code></span>
+          <label class="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-dashed border-cyan-500/60 text-cyan-300 font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition">
+            <span>Choose file from phone</span>
+            <input type="file" id="jsonFileInput" accept=".json,application/json,text/plain" class="hidden">
+          </label>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-xs font-bold text-white">Or paste the JSON</span>
+            <button type="button" id="loadDemoRealEeroBtn" class="text-[11px] font-semibold text-cyan-400 hover:text-cyan-300 underline">Fill in sample JSON</button>
+          </div>
+          <textarea id="pasteJsonTextarea" rows="4" placeholder='[{"name": "Living Room", "model": "eero Pro 6E", "gateway": true, "wired": true}]' class="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-[11px] font-mono text-slate-200 focus:outline-none focus:border-cyan-500"></textarea>
+          <button type="button" id="importPastedJsonBtn" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-xs transition active:scale-95">Import Units</button>
+          <p class="text-[10px] text-slate-500">Importing replaces the unit list with what's in the JSON.</p>
+        </div>
+      </div>
+
+      <!-- TAB 3: HOUSE + CALIBRATION -->
+      <div id="tab-calibrate" class="tab-pane hidden space-y-3">
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold text-white uppercase tracking-wider">House Size</h3>
+            <span id="sqftBadge" class="text-[11px] font-mono px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">1,800 sq ft</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="bg-slate-900 p-2 rounded-lg border border-slate-800">
+              <label class="block text-[10px] text-slate-400 mb-1" for="houseWidthInput">Width, left to right (ft)</label>
+              <div class="flex items-center gap-1">
+                <button type="button" id="widthMinusBtn" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold" aria-label="Width minus 5 feet">-5</button>
+                <input type="number" id="houseWidthInput" min="15" max="150" class="w-full bg-slate-950 border border-slate-700 rounded py-1 text-center font-mono text-xs text-white">
+                <button type="button" id="widthPlusBtn" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold" aria-label="Width plus 5 feet">+5</button>
+              </div>
+            </div>
+            <div class="bg-slate-900 p-2 rounded-lg border border-slate-800">
+              <label class="block text-[10px] text-slate-400 mb-1" for="houseDepthInput">Depth, front to back (ft)</label>
+              <div class="flex items-center gap-1">
+                <button type="button" id="depthMinusBtn" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold" aria-label="Depth minus 5 feet">-5</button>
+                <input type="number" id="houseDepthInput" min="15" max="150" class="w-full bg-slate-950 border border-slate-700 rounded py-1 text-center font-mono text-xs text-white">
+                <button type="button" id="depthPlusBtn" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-xs font-mono font-bold" aria-label="Depth plus 5 feet">+5</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-2">
+            <label class="text-[10px] text-slate-400 flex flex-col gap-1">
+              Floors
+              <select id="floorCountSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+              </select>
+            </label>
+            <label class="text-[10px] text-slate-400 flex flex-col gap-1">
+              Floor height (ft)
+              <input type="number" id="floorHeightInput" min="7" max="20" step="0.5" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+            </label>
+            <label class="text-[10px] text-slate-400 flex flex-col gap-1">
+              Floor loss (dB)
+              <input type="number" id="floorLossInput" min="0" max="30" step="0.5" class="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white font-mono">
+            </label>
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <h3 id="wallsFloorLabel" class="text-xs font-bold text-white uppercase tracking-wider">Walls on Floor 1</h3>
+            <label class="flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer">
+              <input type="checkbox" id="showWallsToggle" class="rounded">
+              <span>Walls active</span>
+            </label>
+          </div>
+          <div class="flex flex-wrap items-center gap-1">
+            <button type="button" data-preset="mine" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">My House</button>
+            <button type="button" data-preset="3bed" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">3-Bed Layout</button>
+            <button type="button" data-preset="open" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">Open Plan</button>
+            <button type="button" data-preset="empty" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">No Walls</button>
+          </div>
+
+          <div>
+            <div class="flex justify-between text-[11px] mb-1 gap-2">
+              <label class="text-slate-400" for="wallMaterialSelect">Interior wall material</label>
+              <span id="wallLossReadout" class="font-mono text-cyan-400 font-semibold">3.5 dB / wall</span>
+            </div>
+            <select id="wallMaterialSelect" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+              <option value="drywall">Drywall &amp; wood studs (about 3.5 dB per wall)</option>
+              <option value="plaster">Plaster &amp; lath, older home (about 7 dB)</option>
+              <option value="concrete">Concrete, brick or block (about 12.5 dB)</option>
+              <option value="open">Open concept or glass (about 2 dB)</option>
+              <option value="custom">Custom / fitted to my readings</option>
+            </select>
+          </div>
+          <div>
+            <div class="flex justify-between text-[10px] text-slate-400 mb-0.5">
+              <label for="wallDbSlider">Fine-tune loss per wall</label>
+              <span id="customWallDbLabel" class="font-mono text-slate-200">3.5 dB</span>
+            </div>
+            <input type="range" id="wallDbSlider" min="0" max="20" step="0.5" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+          </div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h3 class="text-xs font-bold text-amber-400 uppercase tracking-wider">Signal Readings</h3>
+              <p class="text-[10px] text-slate-400">Readings from a Wi-Fi analyzer app tune the model to your house. Add at least 3, in different rooms and floors.</p>
+            </div>
+            <button type="button" id="addPinCenterBtn" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-semibold shrink-0">+ Add</button>
+          </div>
+          <div id="calibrationPinsList" class="space-y-1.5 max-h-48 overflow-y-auto"></div>
+          <button type="button" id="autoTunePhysicsBtn" class="w-full py-2 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold text-xs shadow-md transition">
+            Fit Model to My Readings
+          </button>
+          <div id="fitSummary" class="text-[11px] text-slate-400 space-y-1"></div>
+        </div>
+
+        <div class="p-3 rounded-xl bg-slate-950 border border-rose-900/50 space-y-1.5">
+          <p class="text-[11px] text-slate-400">Everything is saved in this browser only. Use the same app or browser each time.</p>
+          <button type="button" id="resetAllBtn" class="w-full py-2 rounded-lg bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border border-rose-800/60 text-xs font-semibold transition">Erase Saved Data</button>
+        </div>
+      </div>
+
+      <!-- TAB 4: COMPARE -->
+      <div id="tab-compare" class="tab-pane hidden space-y-3">
+        <div class="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h3 class="text-xs font-bold text-white uppercase tracking-wider">Placement Snapshot</h3>
+              <p class="text-[11px] text-slate-400">Save your current setup, try new spots, and compare. Figures cover the whole home.</p>
+            </div>
+            <span id="snapshotTimeBadge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">None</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="saveSnapshotBtn" class="py-2 px-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-xs active:scale-95 transition">Save Snapshot</button>
+            <button type="button" id="toggleAbCompareBtn" class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/40 font-bold text-xs flex items-center justify-center gap-1.5 active:scale-95 transition">
+              <span id="abToggleStatusDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+              <span id="abToggleBtnText">Show Saved Spots</span>
+            </button>
+          </div>
+
+          <div class="bg-slate-900 rounded-xl border border-slate-800 p-2.5 space-y-2">
+            <div class="grid grid-cols-4 text-[10px] font-bold uppercase text-slate-400 border-b border-slate-800 pb-1">
+              <span>Whole home</span>
+              <span class="text-right">Saved</span>
+              <span class="text-right">Now</span>
+              <span class="text-right">Change</span>
+            </div>
+            <div class="grid grid-cols-4 text-xs font-mono items-center">
+              <span class="text-slate-300 font-sans text-[11px]">Fast</span>
+              <span id="abBaseFast" class="text-right text-slate-400">--%</span>
+              <span id="abCurrFast" class="text-right text-white font-bold">--%</span>
+              <span id="abDiffFast" class="text-right font-bold text-emerald-400">--</span>
+            </div>
+            <div class="grid grid-cols-4 text-xs font-mono items-center">
+              <span class="text-slate-300 font-sans text-[11px]">Usable</span>
+              <span id="abBaseUsable" class="text-right text-slate-400">--%</span>
+              <span id="abCurrUsable" class="text-right text-white font-bold">--%</span>
+              <span id="abDiffUsable" class="text-right font-bold text-emerald-400">--</span>
+            </div>
+            <div class="grid grid-cols-4 text-xs font-mono items-center">
+              <span class="text-slate-300 font-sans text-[11px]">Dead zones</span>
+              <span id="abBaseDead" class="text-right text-slate-400">--%</span>
+              <span id="abCurrDead" class="text-right text-white font-bold">--%</span>
+              <span id="abDiffDead" class="text-right font-bold text-emerald-400">--</span>
+            </div>
+          </div>
+
+          <button type="button" id="restoreSnapshotBtn" class="w-full py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition">Move Units Back to Snapshot</button>
+        </div>
+      </div>
+
+    </div>
+  </aside>
+
+  <!-- Toast -->
+  <div id="toastBanner" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 border border-cyan-500/60 text-white px-4 py-2 rounded-full shadow-2xl text-xs font-semibold flex items-center gap-2 pointer-events-none opacity-0 -translate-y-4 transition-all duration-200" role="status" aria-live="polite">
+    <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+    <span id="toastText">Saved</span>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ---------------------------------------------------------------
+      // Constants
+      // ---------------------------------------------------------------
+      const STORAGE_KEY = 'eero-mesh-studio-v3';
+      const MAX_FLOORS = 3;
+      const MAX_UNITS = 12;
+      const FT_PER_METER = 3.28;
+
+      const THRESH = { FAST: -65, USABLE: -75, BACKHAUL_GOOD: -65, BACKHAUL_FAIR: -74 };
+
+      // Per-model adjustments are rough estimates, not eero specifications
+      const EERO_MODELS = {
+        'eero Max 7': { boostDb: 2.5, badge: 'Wi-Fi 7' },
+        'eero Pro 7': { boostDb: 2.0, badge: 'Wi-Fi 7' },
+        'eero 7': { boostDb: 1.0, badge: 'Wi-Fi 7' },
+        'eero Pro 6E': { boostDb: 1.5, badge: 'Wi-Fi 6E' },
+        'eero Pro 6': { boostDb: 1.5, badge: 'Wi-Fi 6' },
+        'eero 6+': { boostDb: 0.0, badge: 'Wi-Fi 6' },
+        'eero 6': { boostDb: -1.0, badge: 'Wi-Fi 6' },
+        'eero Beacon': { boostDb: -2.0, badge: 'Wi-Fi 5' }
+      };
+      const FALLBACK_MODEL = 'eero 6+';
+
+      const NODE_COLORS = ['#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#10b981', '#f59e0b'];
+
+      const WALL_PROFILES = {
+        drywall: { lossPerWall: 3.5, n: 2.85 },
+        plaster: { lossPerWall: 7.0, n: 3.25 },
+        concrete: { lossPerWall: 12.5, n: 3.65 },
+        open: { lossPerWall: 2.0, n: 2.45 },
+        custom: null
+      };
+
+      // Wall layouts drawn for a 50 x 36 ft floor, scaled to your house size
+      const PRESET_LAYOUTS = {
+        '3bed': [
+          { x1: 20, y1: 0, x2: 20, y2: 36, label: 'Hallway' },
+          { x1: 20, y1: 18, x2: 50, y2: 18, label: 'Kitchen/Living' },
+          { x1: 0, y1: 13, x2: 20, y2: 13, label: 'Bedroom 1' },
+          { x1: 0, y1: 25, x2: 20, y2: 25, label: 'Main Bedroom' },
+          { x1: 35, y1: 0, x2: 35, y2: 18, label: 'Office' }
+        ],
+        'open': [
+          { x1: 22, y1: 0, x2: 22, y2: 14, label: 'Kitchen Bar' },
+          { x1: 34, y1: 22, x2: 50, y2: 22, label: 'Bedroom Suite' }
+        ],
+        'empty': []
+      };
+
+      // Your house, traced from your hand-drawn floor sketches and stretched to the
+      // surveyed 20 x 40 ft footprint. Drawn the way the sketches are: back (porch) at
+      // the top, front door at the bottom, your left on the left.
+      // x = feet from the left wall, y = feet from the back wall. Positions are approximate.
+      const MY_HOUSE = {
+        width: 20,
+        depth: 40,
+        walls: {
+          1: [
+            { x1: 6.6, y1: 13.2, x2: 20, y2: 13.2 },
+            { x1: 6.6, y1: 13.2, x2: 6.6, y2: 40 },
+            { x1: 6.6, y1: 21.7, x2: 20, y2: 21.7 },
+            { x1: 6.6, y1: 27, x2: 20, y2: 27 },
+            { x1: 0, y1: 34.7, x2: 20, y2: 34.7 }
+          ],
+          2: [
+            { x1: 0, y1: 9, x2: 4.3, y2: 9 },
+            { x1: 4.3, y1: 9, x2: 4.3, y2: 25.7 },
+            { x1: 0, y1: 18, x2: 4.3, y2: 18 },
+            { x1: 0, y1: 22, x2: 4.3, y2: 22 },
+            { x1: 8.1, y1: 29.5, x2: 8.1, y2: 35.3 },
+            { x1: 0, y1: 35.7, x2: 20, y2: 35.7 }
+          ],
+          3: [
+            { x1: 0, y1: 11.1, x2: 20, y2: 11.1 },
+            { x1: 3.7, y1: 11.1, x2: 3.7, y2: 26.4 },
+            { x1: 6.3, y1: 12.4, x2: 6.3, y2: 23.9 },
+            { x1: 6.3, y1: 15.3, x2: 20, y2: 15.3 },
+            { x1: 13.8, y1: 15.3, x2: 13.8, y2: 22.7 },
+            { x1: 6.3, y1: 22.7, x2: 13.8, y2: 22.7 },
+            { x1: 0, y1: 26.4, x2: 20, y2: 26.4 },
+            { x1: 10.9, y1: 26.4, x2: 10.9, y2: 40 }
+          ]
+        },
+        rooms: {
+          1: [
+            { x: 12, y: 6.5, label: 'Bedroom' },
+            { x: 13, y: 24.3, label: 'Bath' },
+            { x: 13, y: 31, label: 'Room' },
+            { x: 3.3, y: 24, label: 'Hall' },
+            { x: 3.3, y: 37.3, label: 'Stairs' }
+          ],
+          2: [
+            { x: 11, y: 7, label: 'Living Room' },
+            { x: 2.2, y: 13.5, label: 'Restroom' },
+            { x: 2.2, y: 20, label: 'Closet' },
+            { x: 14, y: 24.3, label: 'Counter' },
+            { x: 13, y: 30.5, label: 'Kitchen' },
+            { x: 4, y: 31, label: 'Stairs' },
+            { x: 11, y: 37.9, label: 'Front Door' }
+          ],
+          3: [
+            { x: 10, y: 5.5, label: 'Master Bed' },
+            { x: 1.85, y: 19, label: 'Stairs' },
+            { x: 10, y: 19, label: 'Master Bath' },
+            { x: 16.9, y: 20.5, label: 'Bath' },
+            { x: 5.4, y: 33, label: 'Bedroom' },
+            { x: 15.5, y: 33, label: 'Bedroom' }
+          ]
+        }
+      };
+
+      function isValidPreset(key) {
+        return key === 'mine' || Object.prototype.hasOwnProperty.call(PRESET_LAYOUTS, key);
+      }
+
+      const DEFAULT_MODEL = { refRssi: -38.5, n: 2.85, lossPerWall: 3.5, floorLossDb: 10 };
+
+      // Your three units, placed where your sketches show them
+      function exampleNodes() {
+        return [
+          { id: 'eero-1', name: 'Main eero', model: FALLBACK_MODEL, x: 17.7, y: 2.1, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
+          { id: 'eero-2', name: '2nd eero', model: FALLBACK_MODEL, x: 18.4, y: 12.4, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
+          { id: 'eero-3', name: '3rd eero', model: FALLBACK_MODEL, x: 5.2, y: 37.1, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
+        ];
+      }
+
+      function defaultState() {
+        return {
+          // 20 x 40 ft three-story townhouse footprint (from the property survey)
+          houseWidth: 20,
+          houseDepth: 40,
+          floorCount: 3,
+          floorHeightFt: 10,
+          floorLossDb: DEFAULT_MODEL.floorLossDb,
+          currentFloor: 1,
+          wallMaterial: 'drywall',
+          lossPerWall: DEFAULT_MODEL.lossPerWall,
+          pathLossExponent: DEFAULT_MODEL.n,
+          refRssi: DEFAULT_MODEL.refRssi,
+          floorPresets: { 1: 'mine', 2: 'mine', 3: 'mine' },
+          wallsByFloor: { 1: [], 2: [], 3: [] },
+          showWalls: true,
+          visualMode: 'heatmap',
+          interactionMode: 'drag',
+          isComparingAb: false,
+          drawerHeightState: 'half',
+          activeNodeId: null,
+          activePinId: null,
+          probePoint: null,
+          nodes: exampleNodes(),
+          nodesAreExample: false,
+          calibrationPins: [],
+          lastFit: null,
+          baselineSnapshot: null
+        };
+      }
+
+      let state = defaultState();
+
+      // ---------------------------------------------------------------
+      // Small helpers
+      // ---------------------------------------------------------------
+      const $ = id => document.getElementById(id);
+
+      function esc(value) {
+        return String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      function clampNum(value, min, max, fallback) {
+        return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+      }
+
+      function round1(value) {
+        return Math.round(value * 10) / 10;
+      }
+
+      function nodeById(id) {
+        return state.nodes.find(n => n.id === id) || null;
+      }
+
+      function ensureGateway() {
+        let found = false;
+        state.nodes.forEach(n => {
+          if (n.isGateway && !found) {
+            found = true;
+            n.isWired = true;
+          } else {
+            n.isGateway = false;
+          }
+        });
+        if (!found && state.nodes[0]) {
+          state.nodes[0].isGateway = true;
+          state.nodes[0].isWired = true;
+        }
+      }
+
+      function clampItemsToHouse() {
+        const fit = item => {
+          item.x = clampNum(item.x, 0.5, state.houseWidth - 0.5, state.houseWidth / 2);
+          item.y = clampNum(item.y, 0.5, state.houseDepth - 0.5, state.houseDepth / 2);
+          item.floor = clampNum(Math.round(item.floor), 1, state.floorCount, 1);
+        };
+        state.nodes.forEach(fit);
+        state.calibrationPins.forEach(fit);
+        state.currentFloor = clampNum(state.currentFloor, 1, state.floorCount, 1);
+      }
+
+      function matchModel(raw) {
+        const text = String(raw || '').toLowerCase();
+        let best = null;
+        Object.keys(EERO_MODELS).forEach(key => {
+          if (text.includes(key.toLowerCase()) && (!best || key.length > best.length)) best = key;
+        });
+        return best || FALLBACK_MODEL;
+      }
+
+      // ---------------------------------------------------------------
+      // Saving and loading (this browser only)
+      // ---------------------------------------------------------------
+      const PERSISTED_KEYS = [
+        'houseWidth', 'houseDepth', 'floorCount', 'floorHeightFt', 'floorLossDb', 'currentFloor',
+        'wallMaterial', 'lossPerWall', 'pathLossExponent', 'refRssi', 'floorPresets', 'showWalls',
+        'visualMode', 'nodes', 'nodesAreExample', 'calibrationPins', 'lastFit', 'baselineSnapshot'
+      ];
+
+      let saveTimer = null;
+      function scheduleSave() {
+        clearTimeout(saveTimer);
+        saveTimer = setTimeout(saveNow, 400);
+      }
+
+      function saveNow() {
+        try {
+          const out = {};
+          PERSISTED_KEYS.forEach(k => { out[k] = state[k]; });
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
+        } catch (e) {
+          // Storage can be blocked (private mode); the app still works without it
+        }
+      }
+
+      function cleanNode(n, idx) {
+        if (!n || typeof n !== 'object') return null;
+        return {
+          id: typeof n.id === 'string' && n.id ? n.id.slice(0, 60) : `eero-${Date.now()}-${idx}`,
+          name: String(n.name ?? `eero #${idx + 1}`).slice(0, 60) || `eero #${idx + 1}`,
+          model: EERO_MODELS[n.model] ? n.model : matchModel(n.model),
+          x: clampNum(Number(n.x), 0, 150, 10),
+          y: clampNum(Number(n.y), 0, 150, 10),
+          floor: clampNum(Math.round(Number(n.floor)), 1, MAX_FLOORS, 1),
+          isGateway: Boolean(n.isGateway),
+          isWired: Boolean(n.isWired),
+          status: n.status === 'red' ? 'red' : 'green',
+          mac: String(n.mac ?? '').slice(0, 40),
+          color: /^#[0-9a-f]{6}$/i.test(String(n.color)) ? n.color : NODE_COLORS[idx % NODE_COLORS.length]
+        };
+      }
+
+      function cleanPin(p, idx) {
+        if (!p || typeof p !== 'object') return null;
+        const reading = Number(p.measuredRssi);
+        return {
+          id: typeof p.id === 'string' && p.id ? p.id.slice(0, 60) : `pin-${Date.now()}-${idx}`,
+          x: clampNum(Number(p.x), 0, 150, 10),
+          y: clampNum(Number(p.y), 0, 150, 10),
+          floor: clampNum(Math.round(Number(p.floor)), 1, MAX_FLOORS, 1),
+          measuredRssi: p.measuredRssi === null || p.measuredRssi === undefined || !Number.isFinite(reading) ? null : clampNum(Math.round(reading), -100, -10, null),
+          nodeId: typeof p.nodeId === 'string' ? p.nodeId : null
+        };
+      }
+
+      function cleanMetrics(m) {
+        if (!m || typeof m !== 'object') return null;
+        const fast = Number(m.fastPct), usable = Number(m.usablePct), dead = Number(m.deadPct);
+        if (![fast, usable, dead].every(Number.isFinite)) return null;
+        return { fastPct: fast, usablePct: usable, deadPct: dead };
+      }
+
+      function loadState() {
+        let saved = null;
+        try {
+          saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+        } catch (e) {
+          return;
+        }
+        if (!saved || typeof saved !== 'object') return;
+
+        state.houseWidth = clampNum(Number(saved.houseWidth), 15, 150, state.houseWidth);
+        state.houseDepth = clampNum(Number(saved.houseDepth), 15, 150, state.houseDepth);
+        state.floorCount = clampNum(Math.round(Number(saved.floorCount)), 1, MAX_FLOORS, state.floorCount);
+        state.floorHeightFt = clampNum(Number(saved.floorHeightFt), 7, 20, state.floorHeightFt);
+        state.floorLossDb = clampNum(Number(saved.floorLossDb), 0, 30, state.floorLossDb);
+        state.lossPerWall = clampNum(Number(saved.lossPerWall), 0, 20, state.lossPerWall);
+        state.pathLossExponent = clampNum(Number(saved.pathLossExponent), 1.6, 5, state.pathLossExponent);
+        state.refRssi = clampNum(Number(saved.refRssi), -60, -20, state.refRssi);
+        state.currentFloor = clampNum(Math.round(Number(saved.currentFloor)), 1, MAX_FLOORS, 1);
+        if (Object.prototype.hasOwnProperty.call(WALL_PROFILES, saved.wallMaterial)) state.wallMaterial = saved.wallMaterial;
+        if (typeof saved.showWalls === 'boolean') state.showWalls = saved.showWalls;
+        if (['heatmap', 'contours', 'domains', 'clean'].includes(saved.visualMode)) state.visualMode = saved.visualMode;
+
+        if (saved.floorPresets && typeof saved.floorPresets === 'object') {
+          for (let f = 1; f <= MAX_FLOORS; f++) {
+            if (isValidPreset(saved.floorPresets[f])) state.floorPresets[f] = saved.floorPresets[f];
+          }
+        }
+
+        if (Array.isArray(saved.nodes)) {
+          const nodes = saved.nodes.slice(0, MAX_UNITS).map(cleanNode).filter(Boolean);
+          if (nodes.length) {
+            state.nodes = nodes;
+            state.nodesAreExample = saved.nodesAreExample === true;
+          }
+        }
+        ensureGateway();
+
+        if (Array.isArray(saved.calibrationPins)) {
+          state.calibrationPins = saved.calibrationPins.slice(0, 60).map(cleanPin).filter(Boolean);
+        }
+
+        const fit = saved.lastFit;
+        if (fit && typeof fit === 'object' && ['A', 'n', 'W', 'F', 'rms', 'count'].every(k => Number.isFinite(fit[k]))) {
+          state.lastFit = { A: fit.A, n: fit.n, W: fit.W, F: fit.F, rms: fit.rms, count: fit.count, date: String(fit.date || '').slice(0, 20) };
+        }
+
+        const base = saved.baselineSnapshot;
+        if (base && typeof base === 'object' && Array.isArray(base.nodes)) {
+          const metrics = cleanMetrics(base.metrics);
+          const nodes = base.nodes.slice(0, MAX_UNITS).map(cleanNode).filter(Boolean);
+          if (metrics && nodes.length) {
+            const floorMetrics = {};
+            for (let f = 1; f <= MAX_FLOORS; f++) {
+              const m = cleanMetrics(base.floorMetrics && base.floorMetrics[f]);
+              if (m) floorMetrics[f] = m;
+            }
+            state.baselineSnapshot = { nodes, metrics, floorMetrics, date: String(base.date || '').slice(0, 20) };
+          }
+        }
+
+        clampItemsToHouse();
+      }
+
+      // ---------------------------------------------------------------
+      // Walls (one layout per floor)
+      // ---------------------------------------------------------------
+      function buildWallsForFloor(floor) {
+        if (state.floorPresets[floor] === 'mine') {
+          const sx = state.houseWidth / MY_HOUSE.width;
+          const sy = state.houseDepth / MY_HOUSE.depth;
+          state.wallsByFloor[floor] = (MY_HOUSE.walls[floor] || []).map(w => ({
+            x1: w.x1 * sx, y1: w.y1 * sy, x2: w.x2 * sx, y2: w.y2 * sy, label: ''
+          }));
+          return;
+        }
+        const template = PRESET_LAYOUTS[state.floorPresets[floor]] || [];
+        state.wallsByFloor[floor] = template.map(w => ({
+          x1: (w.x1 / 50) * state.houseWidth,
+          y1: (w.y1 / 36) * state.houseDepth,
+          x2: (w.x2 / 50) * state.houseWidth,
+          y2: (w.y2 / 36) * state.houseDepth,
+          label: w.label
+        }));
+      }
+
+      function rebuildAllWalls() {
+        for (let f = 1; f <= MAX_FLOORS; f++) buildWallsForFloor(f);
+      }
+
+      function ccw(A, B, C) {
+        return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+      }
+
+      function segmentsIntersect(p1, p2, p3, p4) {
+        return (ccw(p1, p3, p4) !== ccw(p2, p3, p4)) && (ccw(p1, p2, p3) !== ccw(p1, p2, p4));
+      }
+
+      // Walls crossed on one floor. For paths between floors this counts the
+      // walls on the receiving floor only, which is an approximation.
+      function countWallsBetween(x1, y1, x2, y2, floor) {
+        const walls = state.showWalls ? (state.wallsByFloor[floor] || []) : [];
+        let hits = 0;
+        const p1 = { x: x1, y: y1 };
+        const p2 = { x: x2, y: y2 };
+        for (const w of walls) {
+          if (segmentsIntersect(p1, p2, { x: w.x1, y: w.y1 }, { x: w.x2, y: w.y2 })) hits++;
+        }
+        return hits;
+      }
+
+      // ---------------------------------------------------------------
+      // Signal model
+      //   rssi = A + modelBoost - 10 n log10(distance m) - walls x W - floors x F
+      // ---------------------------------------------------------------
+      function modelBoost(node) {
+        return (EERO_MODELS[node.model] || EERO_MODELS[FALLBACK_MODEL]).boostDb;
+      }
+
+      function pathInfo(px, py, pfloor, node) {
+        const floors = Math.abs(pfloor - node.floor);
+        const dz = floors * state.floorHeightFt;
+        const distFt = Math.max(1.5, Math.hypot(px - node.x, py - node.y, dz));
+        const walls = countWallsBetween(node.x, node.y, px, py, pfloor);
+        return { distFt, walls, floors };
+      }
+
+      function rssiFromParams(info, boost, A, n, W, F) {
+        return Math.min(-22, A + boost - 10 * n * Math.log10(info.distFt / FT_PER_METER) - info.walls * W - info.floors * F);
+      }
+
+      function computeNodeRssiAt(px, py, pfloor, node) {
+        return rssiFromParams(pathInfo(px, py, pfloor, node), modelBoost(node), state.refRssi, state.pathLossExponent, state.lossPerWall, state.floorLossDb);
+      }
+
+      function samplePointCoverage(px, py, pfloor) {
+        let best = { rssi: -115, node: null, distFt: 0, walls: 0, floors: 0 };
+        for (const node of state.nodes) {
+          const info = pathInfo(px, py, pfloor, node);
+          const rssi = rssiFromParams(info, modelBoost(node), state.refRssi, state.pathLossExponent, state.lossPerWall, state.floorLossDb);
+          if (rssi > best.rssi) best = { rssi, node, distFt: info.distFt, walls: info.walls, floors: info.floors };
+        }
+        return best;
+      }
+
+      // Signal between two units (the weaker direction)
+      function linkRssi(a, b) {
+        return Math.min(computeNodeRssiAt(b.x, b.y, b.floor, a), computeNodeRssiAt(a.x, a.y, a.floor, b));
+      }
+
+      // Each wireless unit picks the route to the gateway whose weakest link is strongest.
+      // Wired units connect straight to the gateway.
+      function computeBackhaul() {
+        const gateway = state.nodes.find(n => n.isGateway) || state.nodes[0];
+        const info = new Map();
+        state.nodes.forEach(n => info.set(n.id, { rssi: -Infinity, parent: null, hops: 0, wired: false, linkRssi: null }));
+        state.nodes.forEach(n => {
+          if (n === gateway) info.set(n.id, { rssi: Infinity, parent: null, hops: 0, wired: true, linkRssi: null });
+          else if (n.isWired) info.set(n.id, { rssi: Infinity, parent: gateway, hops: 1, wired: true, linkRssi: null });
+        });
+
+        const done = new Set();
+        for (;;) {
+          let current = null;
+          for (const n of state.nodes) {
+            if (done.has(n.id) || info.get(n.id).rssi === -Infinity) continue;
+            if (!current || info.get(n.id).rssi > info.get(current.id).rssi) current = n;
+          }
+          if (!current) break;
+          done.add(current.id);
+
+          for (const other of state.nodes) {
+            if (done.has(other.id) || other === gateway || other.isWired) continue;
+            const link = linkRssi(current, other);
+            const candidate = Math.min(info.get(current.id).rssi, link);
+            if (candidate > info.get(other.id).rssi) {
+              info.set(other.id, { rssi: candidate, parent: current, hops: info.get(current.id).hops + 1, wired: false, linkRssi: link });
+            }
+          }
+        }
+        return { gateway, info };
+      }
+
+      // ---------------------------------------------------------------
+      // Coverage statistics
+      // ---------------------------------------------------------------
+      function countsToMetrics(c) {
+        if (!c.total) return { fastPct: 0, usablePct: 0, deadPct: 0 };
+        return {
+          fastPct: round1((c.fast / c.total) * 100),
+          usablePct: round1((c.usable / c.total) * 100),
+          deadPct: round1((c.dead / c.total) * 100)
+        };
+      }
+
+      // Coarse grid over every floor: per-floor and whole-home figures
+      function computeCoverage() {
+        const cols = 42, rows = 30;
+        const home = { fast: 0, usable: 0, dead: 0, total: 0 };
+        const floors = {};
+        for (let f = 1; f <= state.floorCount; f++) {
+          const c = { fast: 0, usable: 0, dead: 0, total: 0 };
+          for (let r = 0; r < rows; r++) {
+            const fy = (r + 0.5) * state.houseDepth / rows;
+            for (let col = 0; col < cols; col++) {
+              const fx = (col + 0.5) * state.houseWidth / cols;
+              const rssi = samplePointCoverage(fx, fy, f).rssi;
+              c.total++;
+              if (rssi >= THRESH.FAST) c.fast++;
+              if (rssi >= THRESH.USABLE) c.usable++;
+              else c.dead++;
+            }
+          }
+          floors[f] = countsToMetrics(c);
+          home.fast += c.fast; home.usable += c.usable; home.dead += c.dead; home.total += c.total;
+        }
+        return { home: countsToMetrics(home), floors };
+      }
+
+      // ---------------------------------------------------------------
+      // Heatmap
+      // ---------------------------------------------------------------
+      const canvas = $('floorCanvas');
+      const ctx = canvas.getContext('2d');
+      const offCanvas = document.createElement('canvas');
+      const offCtx = offCanvas.getContext('2d');
+      const GRID_COLS = 84;
+      const GRID_ROWS = 60;
+      offCanvas.width = GRID_COLS;
+      offCanvas.height = GRID_ROWS;
+
+      let viewTransform = { ox: 32, oy: 28, w: 600, h: 400, scale: 12, cssW: 0, cssH: 0 };
+
+      function rssiToRgba(rssi, alpha) {
+        let r, g, b;
+        if (rssi >= -52) {
+          r = 16; g = 185; b = 129;
+        } else if (rssi >= -62) {
+          const t = (rssi + 62) / 10;
+          r = Math.round(132 + (16 - 132) * t); g = Math.round(204 + (185 - 204) * t); b = Math.round(22 + (129 - 22) * t);
+        } else if (rssi >= -70) {
+          const t = (rssi + 70) / 8;
+          r = Math.round(245 + (132 - 245) * t); g = Math.round(158 + (204 - 158) * t); b = Math.round(11 + (22 - 11) * t);
+        } else if (rssi >= -78) {
+          const t = (rssi + 78) / 8;
+          r = Math.round(239 + (245 - 239) * t); g = Math.round(68 + (158 - 68) * t); b = Math.round(68 + (11 - 68) * t);
+        } else {
+          const t = Math.max(0, Math.min(1, (rssi + 90) / 12));
+          r = Math.round(30 + (239 - 30) * t); g = Math.round(27 + (68 - 27) * t); b = Math.round(75 + (68 - 75) * t);
+        }
+        return { r, g, b, a: Math.round(alpha * 255) };
+      }
+
+      function hexToRgb(hex) {
+        const num = parseInt(hex.replace('#', ''), 16);
+        return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+      }
+
+      function paintHeatmap() {
+        const img = offCtx.createImageData(GRID_COLS, GRID_ROWS);
+        const data = img.data;
+        const stepX = state.houseWidth / GRID_COLS;
+        const stepY = state.houseDepth / GRID_ROWS;
+        const floor = state.currentFloor;
+
+        for (let r = 0; r < GRID_ROWS; r++) {
+          const fy = (r + 0.5) * stepY;
+          for (let c = 0; c < GRID_COLS; c++) {
+            const fx = (c + 0.5) * stepX;
+            const idx = (r * GRID_COLS + c) * 4;
+            const sample = samplePointCoverage(fx, fy, floor);
+            const rssi = sample.rssi;
+
+            if (state.visualMode === 'domains' && sample.node) {
+              const rgb = hexToRgb(sample.node.color);
+              const shade = Math.max(0.28, Math.min(1, (rssi + 88) / 42));
+              data[idx] = Math.round(rgb.r * shade);
+              data[idx + 1] = Math.round(rgb.g * shade);
+              data[idx + 2] = Math.round(rgb.b * shade);
+              data[idx + 3] = 190;
+            } else {
+              let value = rssi;
+              if (state.visualMode === 'contours') {
+                value = rssi >= -55 ? -48 : rssi >= -65 ? -60 : rssi >= -75 ? -70 : rssi >= -80 ? -77 : -84;
+              }
+              const col = rssiToRgba(value, state.visualMode === 'contours' ? 0.78 : 0.72);
+              data[idx] = col.r;
+              data[idx + 1] = col.g;
+              data[idx + 2] = col.b;
+              data[idx + 3] = col.a;
+            }
+          }
+        }
+        offCtx.putImageData(img, 0, 0);
+      }
+
+      // ---------------------------------------------------------------
+      // KPI strip and comparison table
+      // ---------------------------------------------------------------
+      function formatDelta(d, goodWhenPositive) {
+        const good = goodWhenPositive ? d >= 0 : d <= 0;
+        return { text: `${d >= 0 ? '+' : ''}${d.toFixed(1)}%`, cls: good ? 'text-emerald-400' : 'text-rose-400' };
+      }
+
+      function updateTopKpiBar(coverage, backhaul) {
+        const f = state.currentFloor;
+        const m = coverage.floors[f] || coverage.home;
+        $('kpiFastLabel').textContent = `F${f} Fast ≥-65`;
+        $('kpiUsableLabel').textContent = `F${f} Usable ≥-75`;
+        $('kpiDeadLabel').textContent = `F${f} Dead <-75`;
+        $('kpiFastPct').textContent = `${m.fastPct.toFixed(1)}%`;
+        $('kpiUsablePct').textContent = `${m.usablePct.toFixed(1)}%`;
+        $('kpiDeadPct').textContent = `${m.deadPct.toFixed(1)}%`;
+        $('syncStatusBadge').textContent = `${state.nodes.length} eero${state.nodes.length !== 1 ? 's' : ''}`;
+
+        // Backhaul: weakest wireless route in the whole network
+        let worst = null;
+        state.nodes.forEach(n => {
+          const link = backhaul.info.get(n.id);
+          if (!link || link.wired) return;
+          if (worst === null || link.rssi < worst) worst = Math.round(link.rssi);
+        });
+        const bhText = $('kpiBackhaulText');
+        const bhDot = $('backhaulDot');
+        if (worst === null) {
+          bhText.textContent = 'All wired';
+          bhText.className = 'text-[11px] sm:text-xs font-bold font-mono text-cyan-300 truncate';
+          bhDot.className = 'w-1.5 h-1.5 rounded-full bg-cyan-400';
+        } else if (worst >= THRESH.BACKHAUL_GOOD) {
+          bhText.textContent = `Strong ${Math.round(worst)}`;
+          bhText.className = 'text-[11px] sm:text-xs font-bold font-mono text-emerald-400 truncate';
+          bhDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400';
+        } else if (worst >= THRESH.BACKHAUL_FAIR) {
+          bhText.textContent = `Fair ${Math.round(worst)}`;
+          bhText.className = 'text-[11px] sm:text-xs font-bold font-mono text-amber-300 truncate';
+          bhDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+        } else {
+          bhText.textContent = `Weak ${Math.round(worst)}`;
+          bhText.className = 'text-[11px] sm:text-xs font-bold font-mono text-rose-400 truncate';
+          bhDot.className = 'w-1.5 h-1.5 rounded-full bg-rose-500';
+        }
+
+        // Comparison table (whole home)
+        const base = state.baselineSnapshot;
+        const home = coverage.home;
+        $('abCurrFast').textContent = `${home.fastPct.toFixed(1)}%`;
+        $('abCurrUsable').textContent = `${home.usablePct.toFixed(1)}%`;
+        $('abCurrDead').textContent = `${home.deadPct.toFixed(1)}%`;
+
+        const kpiDeltaIds = ['kpiDeltaFast', 'kpiDeltaUsable', 'kpiDeltaDead'];
+        if (!base) {
+          ['abBaseFast', 'abBaseUsable', 'abBaseDead'].forEach(id => { $(id).textContent = '--%'; });
+          ['abDiffFast', 'abDiffUsable', 'abDiffDead'].forEach(id => { $(id).textContent = '--'; $(id).className = 'text-right font-bold text-slate-500'; });
+          kpiDeltaIds.forEach(id => $(id).classList.add('hidden'));
+          return;
+        }
+
+        const rows = [
+          ['Fast', 'fastPct', true],
+          ['Usable', 'usablePct', true],
+          ['Dead', 'deadPct', false]
+        ];
+        rows.forEach(([key, field, positiveGood]) => {
+          $(`abBase${key}`).textContent = `${base.metrics[field].toFixed(1)}%`;
+          const d = formatDelta(home[field] - base.metrics[field], positiveGood);
+          const el = $(`abDiff${key}`);
+          el.textContent = d.text;
+          el.className = `text-right font-bold ${d.cls}`;
+        });
+
+        const baseFloor = base.floorMetrics && base.floorMetrics[f];
+        rows.forEach(([key, field, positiveGood], i) => {
+          const el = $(kpiDeltaIds[i]);
+          if (state.isComparingAb && baseFloor) {
+            const d = formatDelta(m[field] - baseFloor[field], positiveGood);
+            el.textContent = d.text.replace('.0%', '%');
+            el.className = `text-[9px] font-mono font-bold ${d.cls}`;
+          } else {
+            el.classList.add('hidden');
+          }
+        });
+      }
+
+      // ---------------------------------------------------------------
+      // Canvas sizing and drawing
+      // ---------------------------------------------------------------
+      function ftToPx(fx, fy) {
+        return { x: viewTransform.ox + fx * viewTransform.scale, y: viewTransform.oy + fy * viewTransform.scale };
+      }
+
+      function pxToFt(px, py) {
+        return {
+          x: Math.max(0.5, Math.min(state.houseWidth - 0.5, (px - viewTransform.ox) / viewTransform.scale)),
+          y: Math.max(0.5, Math.min(state.houseDepth - 0.5, (py - viewTransform.oy) / viewTransform.scale))
+        };
+      }
+
+      function resizeCanvas() {
+        const rect = $('canvasWrapper').getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        const dpr = window.devicePixelRatio || 1;
+
+        const padLeft = 34, padTop = 58, padRight = 18, padBottom = 50;
+        const availW = Math.max(120, rect.width - padLeft - padRight);
+        const availH = Math.max(100, rect.height - padTop - padBottom);
+        const scale = Math.max(2, Math.min(availW / state.houseWidth, availH / state.houseDepth));
+        const floorW = state.houseWidth * scale;
+        const floorH = state.houseDepth * scale;
+
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+        canvas.style.width = `${rect.width}px`;
+        canvas.style.height = `${rect.height}px`;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        viewTransform = {
+          ox: padLeft + (availW - floorW) / 2,
+          oy: padTop + (availH - floorH) / 2,
+          w: floorW, h: floorH, scale,
+          cssW: rect.width, cssH: rect.height
+        };
+        renderCanvas();
+      }
+
+      function drawGridAndRulers(ox, oy, w, h, scale) {
+        ctx.save();
+        const stepFt = scale < 6 ? 10 : 5;
+        ctx.lineWidth = 1;
+        ctx.font = '500 9px "JetBrains Mono", ui-monospace, monospace';
+        ctx.textBaseline = 'alphabetic';
+        for (let x = 0; x <= state.houseWidth; x += stepFt) {
+          const px = ox + x * scale;
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+          ctx.beginPath(); ctx.moveTo(px, oy); ctx.lineTo(px, oy + h); ctx.stroke();
+          ctx.fillStyle = '#64748b';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${x}'`, px, oy - 6);
+        }
+        for (let y = 0; y <= state.houseDepth; y += stepFt) {
+          const py = oy + y * scale;
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+          ctx.beginPath(); ctx.moveTo(ox, py); ctx.lineTo(ox + w, py); ctx.stroke();
+          ctx.fillStyle = '#64748b';
+          ctx.textAlign = 'right';
+          ctx.fillText(`${y}'`, ox - 6, py + 3);
+        }
+        ctx.restore();
+      }
+
+      function drawPill(text, x, y, color) {
+        ctx.font = '600 9px "JetBrains Mono", ui-monospace, monospace';
+        const tw = ctx.measureText(text).width + 10;
+        ctx.fillStyle = 'rgba(9, 13, 22, 0.88)';
+        ctx.beginPath();
+        ctx.roundRect(x - tw / 2, y - 8, tw, 16, 5);
+        ctx.fill();
+        ctx.strokeStyle = '#334155';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, x, y);
+      }
+
+      function backhaulColor(rssi) {
+        return rssi >= THRESH.BACKHAUL_GOOD ? '#34d399' : rssi >= THRESH.BACKHAUL_FAIR ? '#fbbf24' : '#f87171';
+      }
+
+      function drawBackhaulLines(backhaul) {
+        const floor = state.currentFloor;
+        ctx.save();
+        state.nodes.forEach(node => {
+          const link = backhaul.info.get(node.id);
+          if (!link || !link.parent) return;
+          const parent = link.parent;
+          if (node.floor !== floor && parent.floor !== floor) return;
+
+          const a = ftToPx(parent.x, parent.y);
+          const b = ftToPx(node.x, node.y);
+          const crossFloor = node.floor !== parent.floor;
+          const color = link.wired ? '#38bdf8' : backhaulColor(link.linkRssi);
+
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = color;
+          ctx.globalAlpha = crossFloor ? 0.7 : 1;
+          ctx.setLineDash(link.wired ? (crossFloor ? [8, 4] : []) : (crossFloor ? [2, 4] : [5, 4]));
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+
+          const label = link.wired ? 'Wired' : `${Math.round(link.linkRssi)} dBm`;
+          drawPill(crossFloor ? `${label} ↕` : label, (a.x + b.x) / 2, (a.y + b.y) / 2, color);
+        });
+        ctx.restore();
+      }
+
+      function drawBaselineGhosts() {
+        ctx.save();
+        state.baselineSnapshot.nodes.forEach(bNode => {
+          if (bNode.floor !== state.currentFloor) return;
+          const bp = ftToPx(bNode.x, bNode.y);
+          const curr = nodeById(bNode.id);
+          if (curr && curr.floor === bNode.floor) {
+            const cp = ftToPx(curr.x, curr.y);
+            if (Math.hypot(cp.x - bp.x, cp.y - bp.y) > 4) {
+              ctx.strokeStyle = '#f59e0b';
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([3, 3]);
+              ctx.beginPath(); ctx.moveTo(bp.x, bp.y); ctx.lineTo(cp.x, cp.y); ctx.stroke();
+            }
+          }
+          ctx.setLineDash([3, 3]);
+          ctx.fillStyle = 'rgba(245, 158, 11, 0.18)';
+          ctx.strokeStyle = '#f59e0b';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(bp.x, bp.y, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        });
+        ctx.restore();
+      }
+
+      function drawCalibrationPins() {
+        ctx.save();
+        state.calibrationPins.forEach(pin => {
+          if (pin.floor !== state.currentFloor) return;
+          const p = ftToPx(pin.x, pin.y);
+          const isSelected = state.activePinId === pin.id;
+          const hasReading = pin.measuredRssi !== null;
+          ctx.fillStyle = isSelected ? '#06b6d4' : hasReading ? '#f59e0b' : '#64748b';
+          ctx.strokeStyle = '#090d16';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(p.x, p.y, isSelected ? 11 : 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#090d16';
+          ctx.font = 'bold 8px "JetBrains Mono", ui-monospace, monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(hasReading ? String(pin.measuredRssi) : '?', p.x, p.y);
+        });
+        ctx.restore();
+      }
+
+      function drawEeroPuck(node, ghost) {
+        const p = ftToPx(node.x, node.y);
+        const isSelected = state.activeNodeId === node.id && !ghost;
+        ctx.save();
+        ctx.globalAlpha = ghost ? 0.35 : 1;
+
+        if (isSelected) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 24, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(6, 182, 212, 0.28)';
+          ctx.fill();
+        }
+
+        const sz = ghost ? 18 : 26;
+        if (!ghost) {
+          ctx.shadowColor = 'rgba(0,0,0,0.65)';
+          ctx.shadowBlur = 8;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(p.x - sz / 2, p.y - sz / 2, sz, sz, ghost ? 6 : 8);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = node.isGateway ? 3 : 2;
+        ctx.strokeStyle = node.isGateway ? '#06b6d4' : node.color;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, ghost ? 2 : 3, 0, Math.PI * 2);
+        ctx.fillStyle = node.status === 'red' ? '#ef4444' : '#06b6d4';
+        ctx.fill();
+
+        // A faded unit sitting under a unit on this floor skips its label so the two don't overlap
+        const coveredByCurrent = ghost && state.nodes.some(n => {
+          if (n.floor !== state.currentFloor) return false;
+          const q = ftToPx(n.x, n.y);
+          return Math.hypot(q.x - p.x, q.y - p.y) < 48;
+        });
+        if (coveredByCurrent) {
+          ctx.restore();
+          return;
+        }
+
+        ctx.font = `bold ${ghost ? 9 : 10}px Inter, ui-sans-serif, system-ui, sans-serif`;
+        const label = ghost ? `${node.name} · F${node.floor}` : node.name;
+        const tw = ctx.measureText(label).width;
+        const ly = p.y + sz / 2 + 3;
+        ctx.fillStyle = 'rgba(9, 13, 22, 0.9)';
+        ctx.beginPath();
+        ctx.roundRect(p.x - tw / 2 - 6, ly, tw + 12, 16, 4);
+        ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(label, p.x, ly + 8);
+        ctx.restore();
+      }
+
+      function renderCanvas() {
+        const { ox, oy, w, h, scale, cssW, cssH } = viewTransform;
+        ctx.clearRect(0, 0, cssW || canvas.width, cssH || canvas.height);
+
+        const backhaul = computeBackhaul();
+        const coverage = computeCoverage();
+        updateTopKpiBar(coverage, backhaul);
+
+        if (state.visualMode !== 'clean') {
+          paintHeatmap();
+          ctx.save();
+          ctx.beginPath(); ctx.rect(ox, oy, w, h); ctx.clip();
+          ctx.imageSmoothingEnabled = true;
+          ctx.drawImage(offCanvas, ox, oy, w, h);
+          ctx.restore();
+        } else {
+          ctx.fillStyle = '#090d16';
+          ctx.fillRect(ox, oy, w, h);
+        }
+
+        drawGridAndRulers(ox, oy, w, h, scale);
+
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 2.5;
+        ctx.strokeRect(ox, oy, w, h);
+
+        const walls = state.wallsByFloor[state.currentFloor] || [];
+        if (state.showWalls && walls.length) {
+          ctx.save();
+          ctx.strokeStyle = '#cbd5e1';
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          walls.forEach(wall => {
+            const p1 = ftToPx(wall.x1, wall.y1);
+            const p2 = ftToPx(wall.x2, wall.y2);
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+            if (wall.label && scale >= 8) {
+              ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
+              ctx.font = '600 9px Inter, ui-sans-serif, system-ui, sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'alphabetic';
+              ctx.fillText(wall.label, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2 - 5);
+            }
+          });
+          ctx.restore();
+        }
+
+        if (state.floorPresets[state.currentFloor] === 'mine') {
+          const rooms = MY_HOUSE.rooms[state.currentFloor] || [];
+          ctx.save();
+          ctx.font = `600 ${scale >= 9 ? 10 : 9}px Inter, ui-sans-serif, system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = 'rgba(241, 245, 249, 0.6)';
+          rooms.forEach(room => {
+            const p = ftToPx(room.x * state.houseWidth / MY_HOUSE.width, room.y * state.houseDepth / MY_HOUSE.depth);
+            ctx.fillText(room.label, p.x, p.y);
+          });
+          ctx.restore();
+        }
+
+        // Which end of the house is which
+        ctx.save();
+        ctx.font = '700 9px Inter, ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+        ctx.textBaseline = 'top';
+        ctx.fillText('BACK · PORCH', ox + w / 2, oy + 4);
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('FRONT', ox + w / 2, oy + h - 4);
+        ctx.restore();
+
+        drawBackhaulLines(backhaul);
+        if (state.isComparingAb && state.baselineSnapshot) drawBaselineGhosts();
+        drawCalibrationPins();
+
+        state.nodes.forEach(n => { if (n.floor !== state.currentFloor) drawEeroPuck(n, true); });
+        state.nodes.forEach(n => { if (n.floor === state.currentFloor) drawEeroPuck(n, false); });
+
+        if (state.probePoint) {
+          const pt = ftToPx(state.probePoint.x, state.probePoint.y);
+          ctx.save();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(pt.x, pt.y, 9, 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(pt.x - 14, pt.y); ctx.lineTo(pt.x + 14, pt.y);
+          ctx.moveTo(pt.x, pt.y - 14); ctx.lineTo(pt.x, pt.y + 14);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        scheduleSave();
+      }
+
+      // ---------------------------------------------------------------
+      // Unit cards
+      // ---------------------------------------------------------------
+      function markEdited() {
+        if (state.nodesAreExample) {
+          state.nodesAreExample = false;
+          updateExampleBanner();
+        }
+      }
+
+      function updateExampleBanner() {
+        $('exampleBanner').classList.toggle('hidden', !state.nodesAreExample);
+      }
+
+      function floorOptions(selected) {
+        let html = '';
+        for (let f = 1; f <= state.floorCount; f++) {
+          html += `<option value="${f}" ${f === selected ? 'selected' : ''}>Floor ${f}</option>`;
+        }
+        return html;
+      }
+
+      function backhaulDescription(node, backhaul) {
+        const link = backhaul.info.get(node.id);
+        if (node.isGateway) return { text: 'Gateway · connected to your modem', cls: 'text-cyan-300' };
+        if (!link || link.wired) return { text: 'Wired backhaul (Ethernet)', cls: 'text-sky-300' };
+        if (!link.parent) return { text: 'No route to the gateway', cls: 'text-rose-400' };
+        const hops = link.hops > 1 ? ` · ${link.hops} hops` : '';
+        const cls = link.rssi >= THRESH.BACKHAUL_GOOD ? 'text-emerald-400' : link.rssi >= THRESH.BACKHAUL_FAIR ? 'text-amber-300' : 'text-rose-400';
+        return { text: `Wireless via ${link.parent.name} · ${Math.round(link.linkRssi)} dBm${hops}`, cls };
+      }
+
+      function renderNodeCards() {
+        const list = $('nodeCardsList');
+        const backhaul = computeBackhaul();
+        list.innerHTML = '';
+
+        state.nodes.forEach(node => {
+          const id = esc(node.id);
+          const bh = backhaulDescription(node, backhaul);
+          const card = document.createElement('div');
+          card.className = `p-2.5 rounded-xl border transition ${state.activeNodeId === node.id ? 'bg-slate-800/90 border-cyan-500' : 'bg-slate-950 border-slate-800'}`;
+          card.innerHTML = `
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="w-3 h-3 rounded-full shrink-0" style="background:${esc(node.color)}"></span>
+                <input type="text" value="${esc(node.name)}" data-id="${id}" maxlength="60" aria-label="Unit name" class="node-name-input bg-transparent text-xs font-bold text-white focus:bg-slate-900 px-1.5 py-0.5 rounded border border-transparent focus:border-slate-700 focus:outline-none w-full">
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                ${node.isGateway
+                  ? '<span class="text-[9px] font-mono uppercase font-bold px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">Gateway</span>'
+                  : `<button type="button" data-id="${id}" class="set-gw-btn text-[10px] px-1.5 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-cyan-300 border border-slate-800">Make gateway</button>`}
+                ${state.nodes.length > 1 ? `<button type="button" data-id="${id}" class="del-node-btn p-1 text-slate-500 hover:text-rose-400" aria-label="Remove ${esc(node.name)}">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                  </button>` : ''}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-1.5 mb-2">
+              <select data-id="${id}" aria-label="Model" class="node-model-select flex-1 min-w-0 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none">
+                ${Object.keys(EERO_MODELS).map(m => `<option value="${esc(m)}" ${node.model === m ? 'selected' : ''}>${esc(m)} (${esc(EERO_MODELS[m].badge)})</option>`).join('')}
+              </select>
+              <select data-id="${id}" aria-label="Floor" class="node-floor-select bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-slate-200 focus:outline-none">
+                ${floorOptions(node.floor)}
+              </select>
+              ${!node.isGateway ? `<button type="button" data-id="${id}" class="toggle-wired-btn px-2 py-1 rounded-lg text-[10px] font-semibold border transition ${node.isWired ? 'bg-cyan-950 text-cyan-300 border-cyan-800' : 'bg-slate-900 text-slate-400 border-slate-800'}">${node.isWired ? 'Wired' : 'Wireless'}</button>` : ''}
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-900">
+              ${['x', 'y'].map(axis => `
+                <div class="bg-slate-900/90 rounded-lg p-1.5 flex items-center justify-between gap-1 border border-slate-800/80">
+                  <span class="text-[10px] text-slate-400 font-medium pl-1">${axis === 'x' ? 'From left' : 'From back'}</span>
+                  <div class="flex items-center gap-1">
+                    <button type="button" data-id="${id}" data-axis="${axis}" data-step="-1" class="coord-step-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold active:scale-90" aria-label="${axis === 'x' ? 'Move left' : 'Move toward back'} 1 foot">-</button>
+                    <input type="number" step="0.5" min="0" max="${axis === 'x' ? state.houseWidth : state.houseDepth}" value="${node[axis].toFixed(1)}" data-id="${id}" data-axis="${axis}" id="${axis}-val-${id}" aria-label="${axis === 'x' ? 'Feet from left wall' : 'Feet from back wall'}" class="coord-input w-14 bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center font-mono text-xs font-bold text-cyan-300">
+                    <button type="button" data-id="${id}" data-axis="${axis}" data-step="1" class="coord-step-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold active:scale-90" aria-label="${axis === 'x' ? 'Move right' : 'Move toward front'} 1 foot">+</button>
+                  </div>
+                </div>`).join('')}
+            </div>
+            <p class="text-[10px] mt-1.5 ${bh.cls}">${esc(bh.text)}</p>
+            ${node.mac ? `<p class="text-[9px] font-mono text-slate-500 mt-0.5">${esc(node.mac)}</p>` : ''}
+          `;
+          list.appendChild(card);
+        });
+
+        list.querySelectorAll('.node-name-input').forEach(inp => {
+          inp.addEventListener('input', e => {
+            const n = nodeById(e.target.dataset.id);
+            if (!n) return;
+            n.name = e.target.value.slice(0, 60) || 'eero';
+            markEdited();
+            renderCanvas();
+          });
+        });
+
+        list.querySelectorAll('.node-model-select').forEach(sel => {
+          sel.addEventListener('change', e => {
+            const n = nodeById(e.target.dataset.id);
+            if (!n) return;
+            n.model = EERO_MODELS[e.target.value] ? e.target.value : FALLBACK_MODEL;
+            markEdited();
+            renderNodeCards();
+            renderCanvas();
+          });
+        });
+
+        list.querySelectorAll('.node-floor-select').forEach(sel => {
+          sel.addEventListener('change', e => {
+            const n = nodeById(e.target.dataset.id);
+            if (!n) return;
+            n.floor = clampNum(Number(e.target.value), 1, state.floorCount, 1);
+            markEdited();
+            renderNodeCards();
+            renderCanvas();
+          });
+        });
+
+        list.querySelectorAll('.toggle-wired-btn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            const n = nodeById(e.currentTarget.dataset.id);
+            if (!n) return;
+            n.isWired = !n.isWired;
+            markEdited();
+            renderNodeCards();
+            renderCanvas();
+          });
+        });
+
+        list.querySelectorAll('.set-gw-btn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            const id = e.currentTarget.dataset.id;
+            state.nodes.forEach(n => { n.isGateway = n.id === id; });
+            ensureGateway();
+            markEdited();
+            renderNodeCards();
+            renderCanvas();
+            showToast('Gateway changed');
+          });
+        });
+
+        list.querySelectorAll('.del-node-btn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            if (state.nodes.length <= 1) return;
+            const id = e.currentTarget.dataset.id;
+            state.nodes = state.nodes.filter(n => n.id !== id);
+            state.calibrationPins.forEach(p => { if (p.nodeId === id) p.nodeId = null; });
+            if (state.activeNodeId === id) state.activeNodeId = null;
+            ensureGateway();
+            markEdited();
+            renderNodeCards();
+            renderCalibrationPinsList();
+            renderCanvas();
+            showToast('Unit removed');
+          });
+        });
+
+        list.querySelectorAll('.coord-step-btn').forEach(btn => {
+          btn.addEventListener('click', e => {
+            const { id, axis, step } = e.currentTarget.dataset;
+            const n = nodeById(id);
+            if (!n) return;
+            setNodeCoord(n, axis, n[axis] + Number(step));
+          });
+        });
+
+        list.querySelectorAll('.coord-input').forEach(inp => {
+          inp.addEventListener('change', e => {
+            const n = nodeById(e.target.dataset.id);
+            const value = Number(e.target.value);
+            if (!n || !Number.isFinite(value)) {
+              renderNodeCards();
+              return;
+            }
+            setNodeCoord(n, e.target.dataset.axis, value);
+          });
+        });
+      }
+
+      function setNodeCoord(node, axis, value) {
+        const max = axis === 'x' ? state.houseWidth : state.houseDepth;
+        node[axis] = Math.round(clampNum(value, 0.5, max - 0.5, node[axis]) * 2) / 2;
+        markEdited();
+        renderNodeCards();
+        renderCalibrationPinsList();
+        renderCanvas();
+      }
+
+      // ---------------------------------------------------------------
+      // Signal readings (calibration pins)
+      // ---------------------------------------------------------------
+      function pinNode(pin) {
+        return nodeById(pin.nodeId) || samplePointCoverage(pin.x, pin.y, pin.floor).node;
+      }
+
+      function pinSim(pin) {
+        const node = pinNode(pin);
+        return node ? computeNodeRssiAt(pin.x, pin.y, pin.floor, node) : -115;
+      }
+
+      function renderCalibrationPinsList() {
+        const container = $('calibrationPinsList');
+        container.innerHTML = '';
+
+        if (state.calibrationPins.length === 0) {
+          container.innerHTML = '<p class="text-[11px] text-slate-500 italic py-1">No readings yet. Tap <strong>Add Reading</strong> on the map, then tap the spot where you stood.</p>';
+          return;
+        }
+
+        state.calibrationPins.forEach((pin, idx) => {
+          const sim = Math.round(pinSim(pin));
+          const node = pinNode(pin);
+          const has = pin.measuredRssi !== null;
+          const diff = has ? pin.measuredRssi - sim : null;
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between gap-2 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs';
+          row.innerHTML = `
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-5 h-5 shrink-0 rounded-full ${has ? 'bg-amber-500' : 'bg-slate-600'} text-slate-950 font-mono font-bold text-[10px] flex items-center justify-center">${idx + 1}</span>
+              <div class="min-w-0">
+                <div class="font-mono text-[11px] text-slate-200">F${pin.floor} · ${pin.x.toFixed(0)}', ${pin.y.toFixed(0)}'</div>
+                <div class="text-[10px] text-slate-400 truncate">${pin.nodeId ? '' : 'auto: '}${esc(node ? node.name : 'no unit')} · model ${sim} dBm</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${has
+                ? `<span class="font-mono font-bold text-amber-300">${pin.measuredRssi}</span>
+                   <span class="text-[10px] font-mono px-1.5 py-0.5 rounded ${Math.abs(diff) <= 3 ? 'bg-emerald-950 text-emerald-300' : 'bg-rose-950 text-rose-300'}">${diff >= 0 ? '+' : ''}${diff} dB</span>`
+                : '<span class="text-[10px] text-slate-500">no reading</span>'}
+              <button type="button" data-id="${esc(pin.id)}" class="edit-pin-btn text-cyan-400 hover:underline text-[10px] ml-1">Edit</button>
+            </div>`;
+          container.appendChild(row);
+        });
+
+        container.querySelectorAll('.edit-pin-btn').forEach(btn => {
+          btn.addEventListener('click', e => openPinEditorPopover(e.currentTarget.dataset.id));
+        });
+      }
+
+      function renderPinNodeSelect(pin) {
+        const sel = $('pinNodeSelect');
+        sel.replaceChildren();
+        const auto = document.createElement('option');
+        auto.value = '';
+        auto.textContent = 'Not sure (use the strongest)';
+        sel.appendChild(auto);
+        state.nodes.forEach(n => {
+          const opt = document.createElement('option');
+          opt.value = n.id;
+          opt.textContent = `${n.name} (Floor ${n.floor})`;
+          sel.appendChild(opt);
+        });
+        sel.value = pin.nodeId && nodeById(pin.nodeId) ? pin.nodeId : '';
+      }
+
+      function openPinEditorPopover(pinId) {
+        const pin = state.calibrationPins.find(p => p.id === pinId);
+        if (!pin) return;
+        if (pin.floor !== state.currentFloor) switchFloor(pin.floor);
+        state.activePinId = pin.id;
+        $('pinEditorPopover').classList.remove('hidden');
+        $('pinCoordLabel').textContent = `F${pin.floor} · ${pin.x.toFixed(1)}', ${pin.y.toFixed(1)}'`;
+        $('pinMeasuredInput').value = pin.measuredRssi === null ? '' : String(pin.measuredRssi);
+        renderPinNodeSelect(pin);
+        updatePinPopoverSimComparison(pin);
+        renderCanvas();
+      }
+
+      function closePinPopover() {
+        state.activePinId = null;
+        $('pinEditorPopover').classList.add('hidden');
+      }
+
+      function updatePinPopoverSimComparison(pin) {
+        const sim = Math.round(pinSim(pin));
+        $('pinSimValue').textContent = `${sim} dBm`;
+        const badge = $('pinErrorBadge');
+        if (pin.measuredRssi === null) {
+          badge.textContent = 'no reading';
+          badge.className = 'font-mono text-slate-500';
+        } else {
+          const diff = pin.measuredRssi - sim;
+          badge.textContent = `off by ${Math.abs(diff)} dB`;
+          badge.className = `font-mono ${Math.abs(diff) <= 3 ? 'text-emerald-400' : 'text-amber-400'}`;
+        }
+      }
+
+      function activePin() {
+        return state.calibrationPins.find(p => p.id === state.activePinId) || null;
+      }
+
+      function refreshAfterPinChange(pin) {
+        updatePinPopoverSimComparison(pin);
+        renderCalibrationPinsList();
+        renderCanvas();
+      }
+
+      function addPin(x, y, floor) {
+        const pin = {
+          id: `pin-${Date.now()}`,
+          x: Math.round(x * 2) / 2,
+          y: Math.round(y * 2) / 2,
+          floor,
+          measuredRssi: null,
+          nodeId: null
+        };
+        state.calibrationPins.push(pin);
+        renderCalibrationPinsList();
+        openPinEditorPopover(pin.id);
+        return pin;
+      }
+
+      // ---------------------------------------------------------------
+      // Fitting the model to readings
+      //   Least squares for A, n, wall loss W and floor loss F, gently pulled
+      //   toward typical values so a handful of readings gives a sane result.
+      // ---------------------------------------------------------------
+      function solveLinear(M, v) {
+        const n = v.length;
+        const a = M.map((row, i) => [...row, v[i]]);
+        for (let c = 0; c < n; c++) {
+          let p = c;
+          for (let r = c + 1; r < n; r++) if (Math.abs(a[r][c]) > Math.abs(a[p][c])) p = r;
+          if (Math.abs(a[p][c]) < 1e-12) return null;
+          [a[c], a[p]] = [a[p], a[c]];
+          for (let r = 0; r < n; r++) {
+            if (r === c) continue;
+            const f = a[r][c] / a[c][c];
+            for (let k = c; k <= n; k++) a[r][k] -= f * a[c][k];
+          }
+        }
+        return a.map((row, i) => row[n] / row[i]);
+      }
+
+      function fitModelFromPins() {
+        const pins = state.calibrationPins.filter(p => p.measuredRssi !== null);
+        if (pins.length < 3) {
+          showToast(`Enter at least 3 readings (you have ${pins.length})`);
+          return;
+        }
+
+        const profile = WALL_PROFILES[state.wallMaterial];
+        const prior = [
+          DEFAULT_MODEL.refRssi,
+          profile ? profile.n : DEFAULT_MODEL.n,
+          profile ? profile.lossPerWall : DEFAULT_MODEL.lossPerWall,
+          DEFAULT_MODEL.floorLossDb
+        ];
+        // How strongly each value is held near its typical value (noise 3 dB / prior spread)
+        const weight = [(3 / 6) ** 2, (3 / 0.6) ** 2, (3 / 4) ** 2, (3 / 6) ** 2];
+
+        const XtX = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]];
+        const Xty = [0, 0, 0, 0];
+        const used = pins.map(pin => {
+          const node = pinNode(pin);
+          const info = pathInfo(pin.x, pin.y, pin.floor, node);
+          const row = [1, -10 * Math.log10(info.distFt / FT_PER_METER), -info.walls, -info.floors];
+          const y = pin.measuredRssi - modelBoost(node);
+          for (let i = 0; i < 4; i++) {
+            Xty[i] += row[i] * y;
+            for (let j = 0; j < 4; j++) XtX[i][j] += row[i] * row[j];
+          }
+          return { pin, node, info };
+        });
+        for (let i = 0; i < 4; i++) {
+          XtX[i][i] += weight[i];
+          Xty[i] += weight[i] * prior[i];
+        }
+
+        const beta = solveLinear(XtX, Xty);
+        if (!beta) {
+          showToast('Could not fit these readings. Try adding more in different rooms.');
+          return;
+        }
+
+        const A = clampNum(beta[0], -60, -20, DEFAULT_MODEL.refRssi);
+        const n = clampNum(beta[1], 1.6, 5, DEFAULT_MODEL.n);
+        const W = clampNum(beta[2], 0, 20, DEFAULT_MODEL.lossPerWall);
+        const F = clampNum(beta[3], 0, 30, DEFAULT_MODEL.floorLossDb);
+
+        let sq = 0;
+        used.forEach(({ pin, node, info }) => {
+          const r = pin.measuredRssi - rssiFromParams(info, modelBoost(node), A, n, W, F);
+          sq += r * r;
+        });
+
+        state.refRssi = round1(A);
+        state.pathLossExponent = Math.round(n * 100) / 100;
+        state.lossPerWall = round1(W);
+        state.floorLossDb = round1(F);
+        state.wallMaterial = 'custom';
+        state.lastFit = {
+          A: state.refRssi, n: state.pathLossExponent, W: state.lossPerWall, F: state.floorLossDb,
+          rms: round1(Math.sqrt(sq / used.length)), count: used.length,
+          date: new Date().toISOString().slice(0, 10)
+        };
+
+        syncModelControls();
+        renderFitSummary();
+        const pin = activePin();
+        if (pin) updatePinPopoverSimComparison(pin);
+        renderCalibrationPinsList();
+        renderNodeCards();
+        renderCanvas();
+        showToast(`Fitted to ${used.length} readings · typical error ±${state.lastFit.rms} dB`);
+      }
+
+      function renderFitSummary() {
+        const el = $('fitSummary');
+        const current = `Signal at 1 m <strong class="font-mono text-slate-200">${state.refRssi.toFixed(1)} dBm</strong> · fade rate <strong class="font-mono text-slate-200">${state.pathLossExponent.toFixed(2)}</strong> · wall <strong class="font-mono text-slate-200">${state.lossPerWall.toFixed(1)} dB</strong> · floor <strong class="font-mono text-slate-200">${state.floorLossDb.toFixed(1)} dB</strong>`;
+        const fit = state.lastFit;
+        el.innerHTML = `
+          <p>${current}</p>
+          <p class="${fit ? 'text-emerald-400' : 'text-amber-400'}">${fit
+            ? `Fitted from ${fit.count} readings · typical error ±${fit.rms.toFixed(1)} dB${fit.date ? ` · ${esc(fit.date)}` : ''}`
+            : 'Using typical values. Add 3 or more readings to fit your house.'}</p>`;
+      }
+
+      // ---------------------------------------------------------------
+      // Map touch and mouse handling
+      // ---------------------------------------------------------------
+      let isPointerDown = false;
+      let dragNodeId = null;
+
+      function getCanvasPoint(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return { px: clientX - rect.left, py: clientY - rect.top };
+      }
+
+      function onPointerStart(clientX, clientY) {
+        const { px, py } = getCanvasPoint(clientX, clientY);
+        const ft = pxToFt(px, py);
+        isPointerDown = true;
+        dragNodeId = null;
+
+        if (state.interactionMode === 'inspect') {
+          updatePointInspector(ft.x, ft.y);
+          renderCanvas();
+          return;
+        }
+
+        const pinHit = radius => state.calibrationPins.find(pin => {
+          if (pin.floor !== state.currentFloor) return false;
+          const pp = ftToPx(pin.x, pin.y);
+          return Math.hypot(px - pp.x, py - pp.y) <= radius;
+        });
+
+        if (state.interactionMode === 'pin') {
+          const existing = pinHit(22);
+          if (existing) {
+            openPinEditorPopover(existing.id);
+            return;
+          }
+          addPin(ft.x, ft.y, state.currentFloor);
+          showToast('Reading added. Type the dBm you measured.');
+          return;
+        }
+
+        // Move mode: only units on this floor can be grabbed
+        for (let i = state.nodes.length - 1; i >= 0; i--) {
+          const n = state.nodes[i];
+          if (n.floor !== state.currentFloor) continue;
+          const np = ftToPx(n.x, n.y);
+          if (Math.hypot(px - np.x, py - np.y) <= 28) {
+            state.activeNodeId = n.id;
+            dragNodeId = n.id;
+            renderNodeCards();
+            renderCanvas();
+            return;
+          }
+        }
+
+        const pin = pinHit(18);
+        if (pin) openPinEditorPopover(pin.id);
+      }
+
+      function onPointerMove(clientX, clientY) {
+        if (!isPointerDown) return;
+        const { px, py } = getCanvasPoint(clientX, clientY);
+        const ft = pxToFt(px, py);
+
+        if (state.interactionMode === 'inspect') {
+          updatePointInspector(ft.x, ft.y);
+          renderCanvas();
+          return;
+        }
+
+        if (state.interactionMode === 'drag' && dragNodeId) {
+          const node = nodeById(dragNodeId);
+          if (!node) return;
+          node.x = Math.round(ft.x * 2) / 2;
+          node.y = Math.round(ft.y * 2) / 2;
+          const id = esc(node.id);
+          const xIn = document.getElementById(`x-val-${id}`);
+          const yIn = document.getElementById(`y-val-${id}`);
+          if (xIn) xIn.value = node.x.toFixed(1);
+          if (yIn) yIn.value = node.y.toFixed(1);
+          renderCanvas();
+        }
+      }
+
+      function onPointerEnd() {
+        isPointerDown = false;
+        if (dragNodeId) {
+          dragNodeId = null;
+          markEdited();
+          renderNodeCards();
+          renderCalibrationPinsList();
+        }
+      }
+
+      function updatePointInspector(fx, fy) {
+        state.probePoint = { x: fx, y: fy };
+        const cov = samplePointCoverage(fx, fy, state.currentFloor);
+        $('signalInspectorCard').classList.remove('hidden');
+        $('probeCoords').textContent = `F${state.currentFloor} · ${fx.toFixed(1)}', ${fy.toFixed(1)}'`;
+
+        const rssiEl = $('probeRssi');
+        const speedEl = $('probeThroughput');
+        rssiEl.textContent = `${Math.round(cov.rssi)} dBm`;
+        let tone = 'text-rose-400';
+        if (cov.rssi >= -60) { tone = 'text-emerald-400'; speedEl.textContent = '500+ Mbps'; }
+        else if (cov.rssi >= -70) { tone = 'text-lime-400'; speedEl.textContent = '200–500 Mbps'; }
+        else if (cov.rssi >= -78) { tone = 'text-amber-400'; speedEl.textContent = '40–150 Mbps'; }
+        else { speedEl.textContent = 'Dropouts likely'; }
+        rssiEl.className = `font-mono font-bold text-xs ${tone}`;
+        speedEl.className = `font-semibold ${tone}`;
+
+        $('probeApName').textContent = cov.node ? cov.node.name : 'None';
+        const parts = [`${cov.distFt.toFixed(1)}'`, `${cov.walls} wall${cov.walls === 1 ? '' : 's'}`];
+        if (cov.floors) parts.push(`${cov.floors} floor${cov.floors === 1 ? '' : 's'}`);
+        $('probeDistWalls').textContent = parts.join(' · ');
+      }
+
+      canvas.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) {
+          e.preventDefault();
+          onPointerStart(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchmove', e => {
+        if (e.touches.length === 1) {
+          e.preventDefault();
+          onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
+      }, { passive: false });
+      canvas.addEventListener('touchend', onPointerEnd);
+      canvas.addEventListener('touchcancel', onPointerEnd);
+      canvas.addEventListener('mousedown', e => onPointerStart(e.clientX, e.clientY));
+      window.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY));
+      window.addEventListener('mouseup', onPointerEnd);
+
+      // ---------------------------------------------------------------
+      // Importing real units (Termux JSON)
+      // ---------------------------------------------------------------
+      function importEeroJsonPayload(rawText) {
+        let parsed;
+        try {
+          parsed = JSON.parse(rawText);
+        } catch (err) {
+          showToast('That is not valid JSON. Copy everything between the --- lines.');
+          return;
+        }
+        let list = Array.isArray(parsed) ? parsed : (parsed && (parsed.eeros || parsed.data || parsed.nodes)) || [];
+        if (!Array.isArray(list)) list = [];
+        list = list.filter(item => item && typeof item === 'object').slice(0, MAX_UNITS);
+        if (!list.length) {
+          showToast('No eero units found in that JSON');
+          return;
+        }
+
+        const spots = [
+          { x: 0.24, y: 0.28 }, { x: 0.76, y: 0.28 }, { x: 0.28, y: 0.76 }, { x: 0.76, y: 0.76 }, { x: 0.5, y: 0.5 }
+        ];
+        const previous = state.nodesAreExample ? [] : state.nodes;
+        let kept = 0;
+
+        const imported = list.map((item, idx) => {
+          const mac = String(item.mac || item.mac_address || item.serial || '').slice(0, 40);
+          const name = String(item.name || item.location || `eero #${idx + 1}`).slice(0, 60);
+          const existing =
+            (mac && previous.find(n => n.mac && n.mac.toLowerCase() === mac.toLowerCase())) ||
+            previous.find(n => n.name.trim().toLowerCase() === name.trim().toLowerCase()) ||
+            null;
+          if (existing) kept++;
+          const spot = spots[idx % spots.length];
+          const hasXY = Number.isFinite(item.x) && Number.isFinite(item.y);
+          const isGateway = Boolean(item.gateway || item.is_gateway);
+          const wiredText = String(item.connection_type || '').toLowerCase();
+          return cleanNode({
+            id: existing ? existing.id : `eero-${Date.now()}-${idx}`,
+            name,
+            model: matchModel(item.model),
+            x: hasXY ? item.x : existing ? existing.x : spot.x * state.houseWidth,
+            y: hasXY ? item.y : existing ? existing.y : spot.y * state.houseDepth,
+            floor: Number.isFinite(item.floor) ? item.floor : existing ? existing.floor : 1,
+            isGateway,
+            isWired: isGateway || item.wired === true || item.is_wired === true || wiredText === 'wired',
+            status: item.status === 'red' ? 'red' : 'green',
+            mac,
+            color: existing ? existing.color : NODE_COLORS[idx % NODE_COLORS.length]
+          }, idx);
+        });
+
+        const hadExample = state.nodesAreExample;
+        state.nodes = imported;
+        state.nodesAreExample = false;
+        ensureGateway();
+        clampItemsToHouse();
+        const ids = new Set(state.nodes.map(n => n.id));
+        state.calibrationPins.forEach(p => { if (p.nodeId && !ids.has(p.nodeId)) p.nodeId = null; });
+        if (state.activeNodeId && !ids.has(state.activeNodeId)) state.activeNodeId = null;
+        if (hadExample || !state.baselineSnapshot) saveCurrentAsBaseline();
+
+        updateExampleBanner();
+        renderNodeCards();
+        renderCalibrationPinsList();
+        renderCanvas();
+        switchDrawerTab('nodes');
+        const newOnes = imported.length - kept;
+        showToast(`Imported ${imported.length} units${kept ? ` · ${kept} kept their spot` : ''}${newOnes ? ` · place ${newOnes} on the map` : ''}`);
+      }
+
+      // ---------------------------------------------------------------
+      // Controls
+      // ---------------------------------------------------------------
+      function switchDrawerTab(tabId) {
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+        $(`tab-${tabId}`).classList.remove('hidden');
+        document.querySelectorAll('.drawer-tab-btn').forEach(btn => {
+          const active = btn.dataset.tab === tabId;
+          btn.className = `drawer-tab-btn py-2 px-1 rounded-lg text-xs flex items-center justify-center gap-1.5 transition ${active ? 'font-bold bg-slate-800 text-cyan-400 border border-slate-700/80' : 'font-medium text-slate-400 hover:text-white border border-transparent'}`;
+          btn.setAttribute('aria-pressed', String(active));
+        });
+      }
+
+      function switchFloor(floor) {
+        state.currentFloor = clampNum(floor, 1, state.floorCount, 1);
+        state.probePoint = null;
+        $('signalInspectorCard').classList.add('hidden');
+        const pin = activePin();
+        if (pin && pin.floor !== state.currentFloor) closePinPopover();
+        buildFloorSwitcher();
+        syncModelControls();
+        renderCanvas();
+      }
+
+      function buildFloorSwitcher() {
+        const wrap = $('floorSwitcher');
+        wrap.replaceChildren();
+        const label = document.createElement('span');
+        label.className = 'text-[10px] text-slate-400 font-semibold uppercase pl-2 pr-0.5';
+        label.textContent = 'Floor';
+        wrap.appendChild(label);
+        for (let f = 1; f <= state.floorCount; f++) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = String(f);
+          const active = f === state.currentFloor;
+          btn.className = `w-8 h-7 rounded-full text-xs font-bold transition ${active ? 'bg-cyan-500 text-slate-950' : 'text-slate-300 hover:text-white hover:bg-slate-800'}`;
+          btn.setAttribute('aria-pressed', String(active));
+          btn.setAttribute('aria-label', `Show floor ${f}`);
+          btn.addEventListener('click', () => switchFloor(f));
+          wrap.appendChild(btn);
+        }
+        wrap.classList.toggle('hidden', state.floorCount === 1);
+      }
+
+      function syncModelControls() {
+        $('houseWidthInput').value = state.houseWidth;
+        $('houseDepthInput').value = state.houseDepth;
+        $('sqftBadge').textContent = `${(state.houseWidth * state.houseDepth * state.floorCount).toLocaleString()} sq ft`;
+        $('floorCountSelect').value = String(state.floorCount);
+        $('floorHeightInput').value = String(state.floorHeightFt);
+        $('floorLossInput').value = String(state.floorLossDb);
+        $('wallMaterialSelect').value = state.wallMaterial;
+        $('wallDbSlider').value = String(state.lossPerWall);
+        $('customWallDbLabel').textContent = `${state.lossPerWall.toFixed(1)} dB`;
+        $('wallLossReadout').textContent = `${state.lossPerWall.toFixed(1)} dB / wall`;
+        $('showWallsToggle').checked = state.showWalls;
+        $('wallsFloorLabel').textContent = `Walls on Floor ${state.currentFloor}`;
+
+        const preset = state.floorPresets[state.currentFloor];
+        document.querySelectorAll('.layout-preset-btn').forEach(b => {
+          const active = b.dataset.preset === preset;
+          b.className = `layout-preset-btn px-2 py-1 rounded text-[10px] border ${active ? 'font-semibold bg-cyan-950 text-cyan-300 border-cyan-700' : 'font-medium bg-slate-900 text-slate-400 border-slate-800'}`;
+        });
+        document.querySelectorAll('.vmode-btn').forEach(b => {
+          const active = b.dataset.vmode === state.visualMode;
+          b.className = `vmode-btn px-2 py-1 rounded-md transition ${active ? 'font-semibold bg-cyan-600 text-white' : 'font-medium text-slate-400 hover:text-white'}`;
+        });
+        document.querySelectorAll('.imode-btn').forEach(b => {
+          const active = b.dataset.imode === state.interactionMode;
+          b.className = `imode-btn whitespace-nowrap flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition ${active ? 'font-semibold bg-cyan-500 text-slate-950 shadow-sm' : 'font-medium text-slate-300 hover:text-white'}`;
+        });
+        renderFitSummary();
+      }
+
+      document.querySelectorAll('.drawer-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchDrawerTab(btn.dataset.tab));
+      });
+
+      const controlDrawer = $('controlDrawer');
+      $('drawerHandleBar').addEventListener('click', () => {
+        const next = { half: 'full', full: 'min', min: 'half' }[state.drawerHeightState];
+        state.drawerHeightState = next;
+        controlDrawer.style.height = { half: '48dvh', full: '72dvh', min: '24dvh' }[next];
+      });
+
+      document.querySelectorAll('.vmode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.visualMode = btn.dataset.vmode;
+          syncModelControls();
+          renderCanvas();
+        });
+      });
+
+      document.querySelectorAll('.imode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.interactionMode = btn.dataset.imode;
+          if (state.interactionMode !== 'inspect') {
+            state.probePoint = null;
+            $('signalInspectorCard').classList.add('hidden');
+          }
+          syncModelControls();
+          renderCanvas();
+        });
+      });
+
+      $('addNodeBtn').addEventListener('click', () => {
+        if (state.nodes.length >= MAX_UNITS) {
+          showToast(`Up to ${MAX_UNITS} units`);
+          return;
+        }
+        const idx = state.nodes.length;
+        state.nodes.push({
+          id: `eero-${Date.now()}`,
+          name: `eero #${idx + 1}`,
+          model: FALLBACK_MODEL,
+          x: Math.round(state.houseWidth / 2),
+          y: Math.round(state.houseDepth / 2),
+          floor: state.currentFloor,
+          isGateway: false,
+          isWired: false,
+          status: 'green',
+          mac: '',
+          color: NODE_COLORS[idx % NODE_COLORS.length]
+        });
+        markEdited();
+        renderNodeCards();
+        renderCanvas();
+        showToast(`Added a unit to Floor ${state.currentFloor}`);
+      });
+
+      $('copyTermuxCmdBtn').addEventListener('click', () => {
+        const text = $('termuxScriptBlock').textContent;
+        const done = () => {
+          $('copyTermuxBtnText').textContent = 'Copied';
+          showToast('Command copied. Paste it into Termux.');
+          setTimeout(() => { $('copyTermuxBtnText').textContent = 'Copy Command'; }, 2500);
+        };
+        const fallback = () => {
+          const range = document.createRange();
+          range.selectNodeContents($('termuxScriptBlock'));
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          let ok = false;
+          try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+          if (ok) done();
+          else showToast('Copy blocked. The command is selected; copy it from the menu.');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, fallback);
+        } else {
+          fallback();
+        }
+      });
+
+      $('jsonFileInput').addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => importEeroJsonPayload(String(ev.target.result));
+        reader.readAsText(file);
+        e.target.value = '';
+      });
+
+      $('importPastedJsonBtn').addEventListener('click', () => {
+        const raw = $('pasteJsonTextarea').value.trim();
+        if (!raw) {
+          showToast('Paste the JSON from Termux first');
+          return;
+        }
+        importEeroJsonPayload(raw);
+      });
+
+      $('loadDemoRealEeroBtn').addEventListener('click', () => {
+        const sample = [
+          { name: 'Living Room', model: 'eero Max 7', gateway: true, wired: true, status: 'green', mac: '00:00:00:00:00:01' },
+          { name: 'Upstairs Study', model: 'eero Pro 6E', gateway: false, wired: false, status: 'green', mac: '00:00:00:00:00:02' },
+          { name: 'Main Bedroom', model: 'eero 6+', gateway: false, wired: false, status: 'green', mac: '00:00:00:00:00:03' }
+        ];
+        $('pasteJsonTextarea').value = JSON.stringify(sample, null, 2);
+        showToast('Sample JSON filled in. Tap Import Units to try it.');
+      });
+
+      // House size
+      function applyDimensions(newW, newD) {
+        state.houseWidth = clampNum(Math.round(newW), 15, 150, 50);
+        state.houseDepth = clampNum(Math.round(newD), 15, 150, 36);
+        clampItemsToHouse();
+        rebuildAllWalls();
+        syncModelControls();
+        renderNodeCards();
+        renderCalibrationPinsList();
+        resizeCanvas();
+      }
+
+      $('widthMinusBtn').addEventListener('click', () => applyDimensions(state.houseWidth - 5, state.houseDepth));
+      $('widthPlusBtn').addEventListener('click', () => applyDimensions(state.houseWidth + 5, state.houseDepth));
+      $('depthMinusBtn').addEventListener('click', () => applyDimensions(state.houseWidth, state.houseDepth - 5));
+      $('depthPlusBtn').addEventListener('click', () => applyDimensions(state.houseWidth, state.houseDepth + 5));
+      $('houseWidthInput').addEventListener('change', e => applyDimensions(Number(e.target.value) || 50, state.houseDepth));
+      $('houseDepthInput').addEventListener('change', e => applyDimensions(state.houseWidth, Number(e.target.value) || 36));
+
+      // Floors
+      $('floorCountSelect').addEventListener('change', e => {
+        state.floorCount = clampNum(Number(e.target.value), 1, MAX_FLOORS, 3);
+        clampItemsToHouse();
+        buildFloorSwitcher();
+        syncModelControls();
+        renderNodeCards();
+        renderCalibrationPinsList();
+        renderCanvas();
+      });
+
+      $('floorHeightInput').addEventListener('change', e => {
+        state.floorHeightFt = clampNum(Number(e.target.value), 7, 20, 10);
+        syncModelControls();
+        renderCalibrationPinsList();
+        renderNodeCards();
+        renderCanvas();
+      });
+
+      $('floorLossInput').addEventListener('change', e => {
+        state.floorLossDb = clampNum(Number(e.target.value), 0, 30, DEFAULT_MODEL.floorLossDb);
+        syncModelControls();
+        renderCalibrationPinsList();
+        renderNodeCards();
+        renderCanvas();
+      });
+
+      // Walls
+      $('wallMaterialSelect').addEventListener('change', e => {
+        const key = e.target.value;
+        state.wallMaterial = Object.prototype.hasOwnProperty.call(WALL_PROFILES, key) ? key : 'drywall';
+        const profile = WALL_PROFILES[state.wallMaterial];
+        if (profile) {
+          state.lossPerWall = profile.lossPerWall;
+          state.pathLossExponent = profile.n;
+        }
+        syncModelControls();
+        renderCalibrationPinsList();
+        renderNodeCards();
+        renderCanvas();
+      });
+
+      $('wallDbSlider').addEventListener('input', e => {
+        state.lossPerWall = Number(e.target.value);
+        state.wallMaterial = 'custom';
+        syncModelControls();
+        renderCalibrationPinsList();
+        renderCanvas();
+      });
+
+      document.querySelectorAll('.layout-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.floorPresets[state.currentFloor] = btn.dataset.preset;
+          buildWallsForFloor(state.currentFloor);
+          syncModelControls();
+          renderCalibrationPinsList();
+          renderNodeCards();
+          renderCanvas();
+        });
+      });
+
+      $('showWallsToggle').addEventListener('change', e => {
+        state.showWalls = e.target.checked;
+        renderCalibrationPinsList();
+        renderNodeCards();
+        renderCanvas();
+      });
+
+      // Reading editor
+      $('closePinPopoverBtn').addEventListener('click', () => {
+        closePinPopover();
+        renderCanvas();
+      });
+
+      function adjustActivePinRssi(delta) {
+        const pin = activePin();
+        if (!pin) return;
+        const start = pin.measuredRssi === null ? Math.round(pinSim(pin)) : pin.measuredRssi;
+        pin.measuredRssi = clampNum(start + delta, -100, -10, start);
+        $('pinMeasuredInput').value = String(pin.measuredRssi);
+        refreshAfterPinChange(pin);
+      }
+
+      $('pinStepMinus').addEventListener('click', () => adjustActivePinRssi(-1));
+      $('pinStepPlus').addEventListener('click', () => adjustActivePinRssi(1));
+
+      $('pinMeasuredInput').addEventListener('input', e => {
+        const pin = activePin();
+        if (!pin) return;
+        const raw = e.target.value.trim();
+        if (raw === '') {
+          pin.measuredRssi = null;
+        } else {
+          let val = Math.round(Number(raw));
+          if (!Number.isFinite(val)) return;
+          if (val > 0) val = -val; // typing 62 means -62 dBm
+          pin.measuredRssi = clampNum(val, -100, -10, null);
+        }
+        refreshAfterPinChange(pin);
+      });
+
+      $('pinNodeSelect').addEventListener('change', e => {
+        const pin = activePin();
+        if (!pin) return;
+        pin.nodeId = e.target.value || null;
+        refreshAfterPinChange(pin);
+      });
+
+      $('deleteActivePinBtn').addEventListener('click', () => {
+        state.calibrationPins = state.calibrationPins.filter(p => p.id !== state.activePinId);
+        closePinPopover();
+        renderCalibrationPinsList();
+        renderCanvas();
+      });
+
+      $('addPinCenterBtn').addEventListener('click', () => {
+        addPin(state.houseWidth / 2, state.houseDepth / 2, state.currentFloor);
+        showToast('Reading added in the middle. Switch to Add Reading to place it exactly.');
+      });
+
+      $('autoTunePhysicsBtn').addEventListener('click', fitModelFromPins);
+      $('autoTuneFromPopoverBtn').addEventListener('click', fitModelFromPins);
+
+      // Erase saved data (two taps)
+      let resetArmed = false;
+      let resetTimer = null;
+      $('resetAllBtn').addEventListener('click', () => {
+        const btn = $('resetAllBtn');
+        if (!resetArmed) {
+          resetArmed = true;
+          btn.textContent = 'Tap again to erase everything';
+          resetTimer = setTimeout(() => { resetArmed = false; btn.textContent = 'Erase Saved Data'; }, 4000);
+          return;
+        }
+        clearTimeout(resetTimer);
+        resetArmed = false;
+        btn.textContent = 'Erase Saved Data';
+        try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* ignore */ }
+        state = defaultState();
+        closePinPopover();
+        $('signalInspectorCard').classList.add('hidden');
+        rebuildAllWalls();
+        saveCurrentAsBaseline();
+        buildFloorSwitcher();
+        syncModelControls();
+        updateExampleBanner();
+        renderNodeCards();
+        renderCalibrationPinsList();
+        resizeCanvas();
+        showToast('Saved data erased');
+      });
+
+      // Snapshot and comparison
+      function saveCurrentAsBaseline() {
+        const coverage = computeCoverage();
+        const now = new Date();
+        state.baselineSnapshot = {
+          nodes: JSON.parse(JSON.stringify(state.nodes)),
+          metrics: { ...coverage.home },
+          floorMetrics: JSON.parse(JSON.stringify(coverage.floors)),
+          date: `${now.toISOString().slice(5, 10)} ${now.toTimeString().slice(0, 5)}`
+        };
+        updateSnapshotBadge();
+      }
+
+      function updateSnapshotBadge() {
+        $('snapshotTimeBadge').textContent = state.baselineSnapshot ? `Saved ${state.baselineSnapshot.date}` : 'None';
+      }
+
+      $('saveSnapshotBtn').addEventListener('click', () => {
+        saveCurrentAsBaseline();
+        renderCanvas();
+        showToast('Current placement saved as the snapshot');
+      });
+
+      $('toggleAbCompareBtn').addEventListener('click', () => {
+        state.isComparingAb = !state.isComparingAb;
+        $('abToggleStatusDot').className = `w-2 h-2 rounded-full ${state.isComparingAb ? 'bg-amber-400' : 'bg-slate-500'}`;
+        $('abToggleBtnText').textContent = state.isComparingAb ? 'Hide Saved Spots' : 'Show Saved Spots';
+        renderCanvas();
+      });
+
+      $('restoreSnapshotBtn').addEventListener('click', () => {
+        if (!state.baselineSnapshot) return;
+        state.nodes = state.baselineSnapshot.nodes.map(cleanNode).filter(Boolean);
+        ensureGateway();
+        clampItemsToHouse();
+        const ids = new Set(state.nodes.map(n => n.id));
+        state.calibrationPins.forEach(p => { if (p.nodeId && !ids.has(p.nodeId)) p.nodeId = null; });
+        renderNodeCards();
+        renderCalibrationPinsList();
+        renderCanvas();
+        showToast('Units moved back to the snapshot');
+      });
+
+      // Toast
+      let toastTimeout = null;
+      function showToast(msg) {
+        const banner = $('toastBanner');
+        $('toastText').textContent = msg;
+        banner.classList.remove('opacity-0', '-translate-y-4');
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => banner.classList.add('opacity-0', '-translate-y-4'), 2800);
+      }
+
+      // ---------------------------------------------------------------
+      // Start up
+      // ---------------------------------------------------------------
+      loadState();
+      rebuildAllWalls();
+      if (!state.baselineSnapshot) saveCurrentAsBaseline();
+      updateSnapshotBadge();
+      switchDrawerTab('nodes');
+      buildFloorSwitcher();
+      syncModelControls();
+      updateExampleBanner();
+      renderNodeCards();
+      renderCalibrationPinsList();
+      new ResizeObserver(resizeCanvas).observe($('canvasWrapper'));
+      resizeCanvas();
+      window.addEventListener('pagehide', saveNow);
+    })();
+  </script>
+</body>
+</html>
