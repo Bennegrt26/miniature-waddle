@@ -59,10 +59,24 @@
 
                 <!-- Node Floor Assignment -->
                 <div class="border-t border-slate-800 pt-5">
-                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-3">Node Floor Assignment</span>
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">Node Floor Assignment</span>
+                        <button type="button" id="resetLayout" class="text-[11px] text-slate-500 hover:text-slate-300 underline underline-offset-2">Reset layout</button>
+                    </div>
                     <div id="nodeFloorControls" class="space-y-2">
                         <!-- One dropdown per node, built by the script -->
                     </div>
+                </div>
+
+                <!-- Signal Model -->
+                <div class="border-t border-slate-800 pt-5">
+                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-3">Signal Model</span>
+                    <div id="modelSummary" class="bg-slate-950 p-4 rounded-xl border border-slate-800 shadow-inner text-xs space-y-1.5">
+                        <!-- Filled by the script -->
+                    </div>
+                    <button type="button" id="openCalibration" class="mt-3 w-full px-4 py-2.5 rounded-lg border border-blue-500 bg-blue-600/20 text-blue-300 text-sm font-medium hover:bg-blue-600/30 transition-colors">
+                        Calibrate with my readings
+                    </button>
                 </div>
 
                 <!-- Live Network Insights -->
@@ -70,11 +84,12 @@
                     <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-3">Live Performance Metrics</span>
                     <div class="space-y-3">
                         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 shadow-inner">
-                            <div class="text-xs text-slate-400">Est. Network Speed</div>
+                            <div class="text-xs text-slate-400">Est. Speed at Slowest Node</div>
                             <div class="text-2xl font-black text-slate-100 mt-1" id="networkSpeed">-- <span class="text-sm font-normal text-slate-400">Mbps</span></div>
+                            <div class="text-[11px] text-slate-500 mt-1" id="speedDetail"></div>
                         </div>
                         <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 shadow-inner">
-                            <div class="text-xs text-slate-400">Node Proximity Status</div>
+                            <div class="text-xs text-slate-400">Node Placement Status</div>
                             <div class="mt-2 flex items-center space-x-2" id="networkStatus">
                                 <span class="w-2.5 h-2.5 rounded-full bg-slate-500"></span>
                                 <span class="text-sm font-semibold text-slate-400">Calculating…</span>
@@ -83,10 +98,10 @@
                     </div>
                 </div>
 
-                <!-- Distance Diagnostic Logs -->
+                <!-- Node Diagnostic Logs -->
                 <div class="border-t border-slate-800 pt-5">
-                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-2">Distance Diagnostic Logs</span>
-                    <div id="diagnosticLogs" class="space-y-2 max-h-48 overflow-y-auto pr-1 text-xs">
+                    <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase block mb-2">Node Diagnostics</span>
+                    <div id="diagnosticLogs" class="space-y-2 max-h-56 overflow-y-auto pr-1 text-xs">
                         <!-- Diagnostics are inserted here by the script -->
                     </div>
                 </div>
@@ -94,7 +109,7 @@
 
             <!-- Interaction Notice -->
             <div class="text-xs text-slate-500 bg-slate-950/50 p-3 rounded-lg border border-slate-800/60 text-center leading-relaxed">
-                ℹ️ Drag any node on the current floor to move it. Faded nodes are on other floors. The dashed blue ring is the 40 ft range on the same floor.
+                ℹ️ Drag any node on the current floor to move it. Faded nodes are on other floors. Rings show where a node's signal drops to −72 dBm (good) and −80 dBm (link limit) on the same floor.
             </div>
         </aside>
 
@@ -103,7 +118,7 @@
             <div class="relative bg-slate-900 rounded-2xl border border-slate-800 p-4 shadow-2xl w-full max-w-4xl h-[420px] md:h-auto md:max-h-full md:aspect-[16/10] flex flex-col">
                 <div class="flex items-center justify-between mb-3 px-2 gap-2">
                     <span class="text-sm font-bold tracking-wide text-slate-300" id="canvasFloorTitle">Floor 1 Blueprint Layout</span>
-                    <span class="text-xs text-slate-500 font-mono tracking-tight">Grid: 5 ft squares · Units: inches</span>
+                    <span class="text-xs text-slate-500 font-mono tracking-tight">Grid: 5 ft squares · Links: distance · predicted dBm</span>
                 </div>
                 <div class="flex-1 relative bg-slate-950 rounded-xl border border-slate-800/80 overflow-hidden shadow-inner">
                     <canvas id="mappingCanvas" class="absolute inset-0 w-full h-full block"></canvas>
@@ -112,34 +127,143 @@
         </main>
     </div>
 
+    <!-- Calibration Dialog -->
+    <dialog id="calibrationDialog" aria-labelledby="calibrationTitle" class="bg-slate-900 text-slate-100 border border-slate-700 rounded-2xl p-0 w-full max-w-3xl backdrop:bg-black/70">
+        <div class="flex flex-col max-h-[90vh]">
+            <div class="flex items-start justify-between gap-4 px-5 py-4 border-b border-slate-800">
+                <div>
+                    <h2 id="calibrationTitle" class="text-base font-bold">Signal Calibration</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Fit the signal model to readings taken in your own house.</p>
+                </div>
+                <button type="button" id="closeCalibration" aria-label="Close calibration" class="text-slate-400 hover:text-slate-100 text-lg leading-none px-2 py-1">✕</button>
+            </div>
+
+            <div class="overflow-y-auto px-5 py-4 space-y-5 text-sm">
+                <details class="bg-slate-950 border border-slate-800 rounded-lg p-3">
+                    <summary class="cursor-pointer font-semibold text-slate-200 text-sm">How to take readings</summary>
+                    <ol class="list-decimal pl-5 mt-2 space-y-1.5 text-xs text-slate-400 leading-relaxed">
+                        <li>Pick one eero node. Stand in a straight line from it with nothing in between, at about 3, 10, 20 and 30 ft. Measure the distance with a tape measure.</li>
+                        <li>At each spot, read the signal 3–5 times and type all of them in that row, separated by commas. The average is used.</li>
+                        <li><strong class="text-slate-300">Mac:</strong> hold Option and click the Wi-Fi icon, then use the RSSI value. <strong class="text-slate-300">Windows:</strong> run <code class="text-slate-300">netsh wlan show interfaces</code> and type the Signal value with a % sign, for example <code class="text-slate-300">78%</code>. <strong class="text-slate-300">Android:</strong> use a Wi-Fi analyzer app.</li>
+                        <li>Make sure your device is connected to <em>that</em> node and not another one. The eero app shows which node each device is using.</li>
+                        <li>Keep to one Wi-Fi band (5 GHz is best) for all readings.</li>
+                        <li>Optional: add readings taken through a wall or floor and untick <em>Use</em>. Their Error column shows roughly how many dB that wall or floor costs.</li>
+                    </ol>
+                </details>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs min-w-[600px]">
+                        <thead class="text-slate-400 text-left">
+                            <tr>
+                                <th class="py-1.5 pr-2 font-medium">#</th>
+                                <th class="py-1.5 pr-2 font-medium">Distance (ft)</th>
+                                <th class="py-1.5 pr-2 font-medium">Readings (dBm or %)</th>
+                                <th class="py-1.5 pr-2 font-medium">Avg dBm</th>
+                                <th class="py-1.5 pr-2 font-medium">Fit dBm</th>
+                                <th class="py-1.5 pr-2 font-medium">Error</th>
+                                <th class="py-1.5 pr-2 font-medium">Use</th>
+                                <th class="py-1.5 font-medium"><span class="sr-only">Remove</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="readingsBody"></tbody>
+                    </table>
+                </div>
+                <button type="button" id="addReading" class="text-xs px-3 py-1.5 rounded-md border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200">+ Add row</button>
+
+                <div class="grid sm:grid-cols-3 gap-3 border-t border-slate-800 pt-4">
+                    <label class="text-xs text-slate-400 flex flex-col gap-1">
+                        Floor loss (dB per floor)
+                        <input id="floorLossInput" type="number" min="0" max="40" step="1" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-slate-100 text-sm">
+                    </label>
+                    <label class="text-xs text-slate-400 flex flex-col gap-1">
+                        Internet plan speed (Mbps)
+                        <input id="planSpeedInput" type="number" min="1" max="10000" step="1" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-slate-100 text-sm">
+                    </label>
+                    <label class="text-xs text-slate-400 flex flex-col gap-1">
+                        Backhaul between nodes
+                        <select id="backhaulInput" class="bg-slate-800 border border-slate-700 rounded-md px-2 py-1.5 text-slate-100 text-sm">
+                            <option value="tri">Tri-band (dedicated radio)</option>
+                            <option value="dual">Dual-band (shared radio)</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button type="button" id="calculateFit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">Calculate fit</button>
+                    <button type="button" id="applyFit" disabled class="px-4 py-2 rounded-lg border border-emerald-500 text-emerald-300 bg-emerald-600/10 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed">Apply to dashboard</button>
+                    <button type="button" id="resetModel" class="px-4 py-2 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm">Reset model to defaults</button>
+                </div>
+
+                <div id="fitResult" class="text-xs space-y-1" aria-live="polite"></div>
+
+                <div>
+                    <div class="flex items-center justify-between text-[11px] text-slate-500 mb-1">
+                        <span>Signal vs distance (log scale)</span>
+                        <span><span class="text-blue-400">━</span> new fit · <span class="text-slate-400">┅</span> current model · <span class="text-blue-400">●</span> used · <span class="text-slate-400">○</span> not used</span>
+                    </div>
+                    <div class="bg-slate-950 rounded-lg border border-slate-800 h-52 relative">
+                        <canvas id="fitChart" class="absolute inset-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </dialog>
+
     <!-- Application Script Logic -->
     <script>
         // ---------------------------------------------------------------
-        // Configuration: every distance below is in INCHES
+        // Configuration: house distances are in INCHES
         // ---------------------------------------------------------------
         const HOUSE_WIDTH_IN = 600;   // 50 ft wide floor plan
         const HOUSE_DEPTH_IN = 360;   // 30 ft deep floor plan
         const FLOOR_HEIGHT_IN = 120;  // 10 ft per story
-        const OPTIMAL_MIN_IN = 180;   // 15 ft minimum spacing guideline
-        const OPTIMAL_MAX_IN = 480;   // 40 ft maximum range guideline
-        const BASE_SPEED_MBPS = 500;  // Mock internet plan speed
+        const OPTIMAL_MIN_IN = 180;   // closer than 15 ft wastes coverage
+        const INCHES_PER_METER = 39.37;
+        const METERS_PER_FOOT = 0.3048;
         const NODE_RADIUS_PX = 16;
         const FLOORS = [1, 2, 3];
+        const STORAGE_KEY = 'eero-mesh-dashboard-v1';
+
+        // General Wi-Fi rules of thumb for a link between two mesh nodes
+        const SIGNAL = {
+            STRONG: -65,    // fast, reliable
+            GOOD: -72,      // fine for backhaul
+            LINK_MIN: -80   // below this, treat the link as unusable
+        };
+
+        // Share of the plan speed a link can carry at a given signal level
+        const RATE_TABLE = [[-50, 1], [-60, 0.75], [-67, 0.5], [-72, 0.3], [-80, 0.1]];
+
+        // Speed kept per extra wireless hop
+        const HOP_FACTOR = { tri: 0.85, dual: 0.5 };
+
+        // Default signal model until you calibrate:
+        //   A = signal 1 m from a node, n = how fast signal fades indoors
+        const DEFAULT_MODEL = {
+            A: -40,
+            n: 3.0,
+            floorLossDb: 10,
+            planMbps: 500,
+            backhaul: 'tri',
+            source: 'default',
+            fit: null
+        };
 
         const STATUS_UI = {
             OPTIMAL: { color: '#10b981', dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'Optimal Placement', message: 'Signal Stable' },
-            CLOSE:   { color: '#f59e0b', dot: 'bg-amber-500',   text: 'text-amber-400',   label: 'Nodes Too Close',   message: 'Overlapped - Too Close' },
-            FAR:     { color: '#f43f5e', dot: 'bg-rose-500',    text: 'text-rose-400',    label: 'Node Out of Range', message: 'Signal Weak - Too Far' }
+            CLOSE:   { color: '#38bdf8', dot: 'bg-sky-400',     text: 'text-sky-400',     label: 'Nodes Too Close',   message: 'Overlapped - Too Close' },
+            WEAK:    { color: '#f59e0b', dot: 'bg-amber-500',   text: 'text-amber-400',   label: 'Weak Backhaul',     message: 'Weak Link - Slow' },
+            FAR:     { color: '#f43f5e', dot: 'bg-rose-500',    text: 'text-rose-400',    label: 'Node Out of Range', message: 'No Usable Link' }
         };
         const GATEWAY_COLOR = '#2563eb';
 
-        // Node positions are stored in inches inside the floor plan,
-        // so they stay correct whatever size the canvas is.
-        const nodes = [
+        // Node positions are stored in inches inside the floor plan
+        const DEFAULT_NODES = [
             { id: 'Primary Gateway', x: 180, y: 200, floor: 1, isGateway: true },
             { id: 'Node 2',          x: 420, y: 160, floor: 1, isGateway: false },
             { id: 'Node 3',          x: 300, y: 300, floor: 2, isGateway: false }
         ];
+        const nodes = DEFAULT_NODES.map(n => ({ ...n }));
 
         // ---------------------------------------------------------------
         // State and DOM references
@@ -147,9 +271,27 @@
         const canvas = document.getElementById('mappingCanvas');
         const ctx = canvas.getContext('2d');
         const speedEl = document.getElementById('networkSpeed');
+        const speedDetailEl = document.getElementById('speedDetail');
         const statusEl = document.getElementById('networkStatus');
         const logsEl = document.getElementById('diagnosticLogs');
         const floorTitleEl = document.getElementById('canvasFloorTitle');
+        const modelSummaryEl = document.getElementById('modelSummary');
+
+        const dialog = document.getElementById('calibrationDialog');
+        const readingsBody = document.getElementById('readingsBody');
+        const fitResultEl = document.getElementById('fitResult');
+        const applyFitBtn = document.getElementById('applyFit');
+        const floorLossInput = document.getElementById('floorLossInput');
+        const planSpeedInput = document.getElementById('planSpeedInput');
+        const backhaulInput = document.getElementById('backhaulInput');
+        const fitCanvas = document.getElementById('fitChart');
+        const fitCtx = fitCanvas.getContext('2d');
+
+        let model = { ...DEFAULT_MODEL };
+        let readings = [3, 10, 20, 30].map(feet => ({ feet: String(feet), rssi: '', include: true }));
+        let pendingFit = null;   // result of "Calculate fit", not yet applied
+        let rowCells = [];
+        let nodeSelects = [];
 
         let currentFloor = 1;
         let draggingNode = null;
@@ -157,6 +299,64 @@
 
         // How inches map to canvas pixels (recalculated on every resize)
         const view = { scale: 1, offsetX: 0, offsetY: 0, width: 0, height: 0 };
+
+        // ---------------------------------------------------------------
+        // Saving and loading (this browser only)
+        // ---------------------------------------------------------------
+        function saveState() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                    model,
+                    readings,
+                    nodes: nodes.map(n => ({ x: n.x, y: n.y, floor: n.floor }))
+                }));
+            } catch (e) {
+                // Storage can be blocked (private mode); the page still works without it
+            }
+        }
+
+        function loadState() {
+            let saved = null;
+            try {
+                saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+            } catch (e) {
+                return;
+            }
+            if (!saved || typeof saved !== 'object') return;
+
+            const m = saved.model || {};
+            if (Number.isFinite(m.A)) model.A = m.A;
+            if (Number.isFinite(m.n) && m.n > 0) model.n = m.n;
+            if (Number.isFinite(m.floorLossDb)) model.floorLossDb = clamp(m.floorLossDb, 0, 40);
+            if (Number.isFinite(m.planMbps) && m.planMbps > 0) model.planMbps = m.planMbps;
+            if (m.backhaul === 'tri' || m.backhaul === 'dual') model.backhaul = m.backhaul;
+            if (m.source === 'calibrated' && m.fit && Number.isFinite(m.fit.rms)) {
+                model.source = 'calibrated';
+                model.fit = {
+                    r2: Number(m.fit.r2) || 0,
+                    rms: Number(m.fit.rms) || 0,
+                    count: Number(m.fit.count) || 0,
+                    date: String(m.fit.date || '')
+                };
+            }
+
+            if (Array.isArray(saved.readings) && saved.readings.length > 0) {
+                readings = saved.readings
+                    .filter(r => r && typeof r === 'object')
+                    .slice(0, 50)
+                    .map(r => ({ feet: String(r.feet ?? ''), rssi: String(r.rssi ?? ''), include: r.include !== false }));
+            }
+
+            if (Array.isArray(saved.nodes) && saved.nodes.length === nodes.length) {
+                saved.nodes.forEach((s, i) => {
+                    if (s && Number.isFinite(s.x) && Number.isFinite(s.y) && FLOORS.includes(s.floor)) {
+                        nodes[i].x = clamp(s.x, 0, HOUSE_WIDTH_IN);
+                        nodes[i].y = clamp(s.y, 0, HOUSE_DEPTH_IN);
+                        nodes[i].floor = s.floor;
+                    }
+                });
+            }
+        }
 
         // ---------------------------------------------------------------
         // Helpers
@@ -191,25 +391,75 @@
             return `${(inches / 12).toFixed(1)} ft`;
         }
 
+        function formatDbm(value) {
+            return `${Math.round(value)} dBm`;
+        }
+
+        // ---------------------------------------------------------------
+        // Signal model (log-distance path loss)
+        // ---------------------------------------------------------------
+        function rssiAtMeters(meters, A, n) {
+            return A - 10 * n * Math.log10(Math.max(0.1, meters));
+        }
+
+        function predictRssi(a, b) {
+            const meters = distanceInches(a, b) / INCHES_PER_METER;
+            const floorsCrossed = Math.abs(a.floor - b.floor);
+            return rssiAtMeters(meters, model.A, model.n) - floorsCrossed * model.floorLossDb;
+        }
+
+        // Same-floor distance (inches) at which the signal falls to a target level
+        function rangeInches(targetRssi) {
+            return Math.pow(10, (model.A - targetRssi) / (10 * model.n)) * INCHES_PER_METER;
+        }
+
+        function rateFraction(rssi) {
+            if (rssi >= RATE_TABLE[0][0]) return 1;
+            for (let i = 1; i < RATE_TABLE.length; i++) {
+                const [hiRssi, hiRate] = RATE_TABLE[i - 1];
+                const [loRssi, loRate] = RATE_TABLE[i];
+                if (rssi >= loRssi) {
+                    return loRate + (rssi - loRssi) / (hiRssi - loRssi) * (hiRate - loRate);
+                }
+            }
+            return 0;
+        }
+
         // ---------------------------------------------------------------
         // Network analysis
         // ---------------------------------------------------------------
-        function analyzeNetwork() {
-            const gateway = nodes.find(n => n.isGateway);
+        // Try every route from the gateway and keep the fastest one per node
+        function findBestPaths(gateway) {
+            const best = new Map();
+            const hopFactor = HOP_FACTOR[model.backhaul];
 
-            // Breadth-first search: which nodes can reach the gateway
-            // through links that are within range, and in how many hops
-            const hops = new Map([[gateway, 0]]);
-            const queue = [gateway];
-            while (queue.length > 0) {
-                const current = queue.shift();
+            function visit(node, visited, weakestRssi, hops, route) {
+                const speed = hops === 0
+                    ? model.planMbps
+                    : model.planMbps * rateFraction(weakestRssi) * Math.pow(hopFactor, hops - 1);
+
+                const previous = best.get(node);
+                if (!previous || speed > previous.speed) {
+                    best.set(node, { speed, weakestRssi, hops, route });
+                }
+
                 for (const other of nodes) {
-                    if (!hops.has(other) && distanceInches(current, other) <= OPTIMAL_MAX_IN) {
-                        hops.set(other, hops.get(current) + 1);
-                        queue.push(other);
-                    }
+                    if (visited.has(other)) continue;
+                    const link = predictRssi(node, other);
+                    if (link < SIGNAL.LINK_MIN) continue;
+                    visited.add(other);
+                    visit(other, visited, Math.min(weakestRssi, link), hops + 1, [...route, other]);
+                    visited.delete(other);
                 }
             }
+
+            visit(gateway, new Set([gateway]), Infinity, 0, [gateway]);
+            return best;
+        }
+
+        function analyzeNetwork() {
+            const gateway = nodes.find(n => n.isGateway);
+            const paths = findBestPaths(gateway);
 
             const results = nodes.map(node => {
                 let nearest = null;
@@ -223,33 +473,33 @@
                     }
                 }
 
+                const path = paths.get(node) || null;
                 let status = 'OPTIMAL';
                 if (node.isGateway) {
                     status = 'GATEWAY';
-                } else if (!hops.has(node)) {
+                } else if (!path) {
                     status = 'FAR';
+                } else if (path.weakestRssi < SIGNAL.GOOD) {
+                    status = 'WEAK';
                 } else if (nearestDist < OPTIMAL_MIN_IN) {
                     status = 'CLOSE';
                 }
 
-                return { node, nearest, nearestDist, hops: hops.get(node), status };
+                return { node, nearest, nearestDist, path, status, speed: path ? path.speed : 0 };
             });
 
-            let speed = BASE_SPEED_MBPS;
-            for (const r of results) {
-                if (r.status === 'FAR') speed -= 150;
-                if (r.status === 'CLOSE') speed -= 75;
-                if (r.hops > 1) speed -= 50 * (r.hops - 1); // each extra wireless hop costs backhaul
-            }
+            const satellites = results.filter(r => r.status !== 'GATEWAY');
+            const slowest = satellites.reduce((min, r) => (!min || r.speed < min.speed ? r : min), null);
 
             let worst = 'OPTIMAL';
-            if (results.some(r => r.status === 'FAR')) worst = 'FAR';
-            else if (results.some(r => r.status === 'CLOSE')) worst = 'CLOSE';
+            if (satellites.some(r => r.status === 'FAR')) worst = 'FAR';
+            else if (satellites.some(r => r.status === 'WEAK')) worst = 'WEAK';
+            else if (satellites.some(r => r.status === 'CLOSE')) worst = 'CLOSE';
 
             return {
                 results,
                 byNode: new Map(results.map(r => [r.node, r])),
-                speed: clamp(speed, 0, BASE_SPEED_MBPS),
+                slowest,
                 worst
             };
         }
@@ -257,40 +507,61 @@
         // ---------------------------------------------------------------
         // Sidebar updates
         // ---------------------------------------------------------------
+        function renderModelSummary() {
+            const calibrated = model.source === 'calibrated' && model.fit;
+            const sourceLine = calibrated
+                ? `<span class="text-emerald-400">Calibrated</span> from ${model.fit.count} readings · typical error ±${model.fit.rms.toFixed(1)} dB${model.fit.date ? ` · ${model.fit.date}` : ''}`
+                : `<span class="text-amber-400">Default estimate</span> · not calibrated yet`;
+
+            modelSummaryEl.innerHTML = `
+                <div class="flex justify-between"><span class="text-slate-400">Signal at 1 m (A)</span><span class="text-slate-200 font-mono">${model.A.toFixed(1)} dBm</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Fade rate (n)</span><span class="text-slate-200 font-mono">${model.n.toFixed(2)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Floor loss</span><span class="text-slate-200 font-mono">${model.floorLossDb} dB / floor</span></div>
+                <div class="flex justify-between"><span class="text-slate-400">Good range, same floor</span><span class="text-slate-200 font-mono">${formatFeet(rangeInches(SIGNAL.GOOD))}</span></div>
+                <div class="pt-1.5 border-t border-slate-800 text-[11px] text-slate-500">${sourceLine}</div>`;
+        }
+
         function updateSidebar(analysis) {
-            speedEl.innerHTML = `${analysis.speed} <span class="text-sm font-normal text-slate-400">Mbps</span>`;
+            const slowest = analysis.slowest;
+            speedEl.innerHTML = `${slowest ? Math.round(slowest.speed) : model.planMbps} <span class="text-sm font-normal text-slate-400">Mbps</span>`;
+            speedDetailEl.textContent = slowest
+                ? `Slowest: ${slowest.node.id} · plan ${model.planMbps} Mbps · ${model.backhaul === 'tri' ? 'tri-band' : 'dual-band'} backhaul`
+                : `Plan ${model.planMbps} Mbps`;
 
             const ui = STATUS_UI[analysis.worst];
             statusEl.innerHTML = `
                 <span class="w-2.5 h-2.5 rounded-full ${ui.dot}"></span>
                 <span class="text-sm font-semibold ${ui.text}">${ui.label}</span>`;
 
-            const relevant = analysis.results.filter(r =>
-                r.status !== 'GATEWAY' &&
-                r.nearest &&
-                (r.node.floor === currentFloor || r.nearest.floor === currentFloor)
-            );
-
-            if (relevant.length === 0) {
-                logsEl.innerHTML = `<div class="text-slate-500 italic p-2">No satellite nodes linked to Floor ${currentFloor}.</div>`;
+            const satellites = analysis.results.filter(r => r.status !== 'GATEWAY');
+            if (satellites.length === 0) {
+                logsEl.innerHTML = '<div class="text-slate-500 italic p-2">No satellite nodes.</div>';
                 return;
             }
 
-            logsEl.innerHTML = relevant.map(r => {
+            logsEl.innerHTML = satellites.map(r => {
                 const rowUi = STATUS_UI[r.status];
-                const floorsApart = Math.abs(r.node.floor - r.nearest.floor);
-                const hopsText = r.hops ? `${r.hops} hop${r.hops > 1 ? 's' : ''} to gateway` : 'No path to gateway';
+                const onThisFloor = r.node.floor === currentFloor;
+                const routeText = r.path
+                    ? r.path.route.map(n => n.isGateway ? 'Gateway' : n.id).join(' → ')
+                    : 'No path to gateway';
+                const signalText = r.path
+                    ? `Weakest link ${formatDbm(r.path.weakestRssi)} · ${r.path.hops} hop${r.path.hops > 1 ? 's' : ''}`
+                    : `No link above ${SIGNAL.LINK_MIN} dBm`;
                 return `
-                    <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 flex flex-col gap-1 shadow-sm">
+                    <div class="p-2 bg-slate-900 rounded-lg border ${onThisFloor ? 'border-slate-700' : 'border-slate-800 opacity-70'} flex flex-col gap-1 shadow-sm">
                         <div class="flex justify-between font-medium text-slate-300">
-                            <span>${r.node.id} ↔ ${r.nearest.id}</span>
-                            <span class="${rowUi.text} font-bold">${Math.round(r.nearestDist)} in</span>
+                            <span>${r.node.id} <span class="text-slate-500 font-normal">· F${r.node.floor}</span></span>
+                            <span class="${rowUi.text} font-bold">${Math.round(r.speed)} Mbps</span>
                         </div>
-                        <div class="text-[10px] text-slate-500 flex justify-between">
+                        <div class="text-[10px] flex justify-between gap-2">
                             <span class="${rowUi.text}">${rowUi.message}</span>
-                            <span>${formatFeet(r.nearestDist)} · ${floorsApart} floor${floorsApart === 1 ? '' : 's'} apart</span>
+                            <span class="text-slate-500 text-right">${signalText}</span>
                         </div>
-                        <div class="text-[10px] text-slate-500">${hopsText}</div>
+                        <div class="text-[10px] text-slate-500 flex justify-between gap-2">
+                            <span>${routeText}</span>
+                            <span>Nearest ${formatFeet(r.nearestDist)}</span>
+                        </div>
                     </div>`;
             }).join('');
         }
@@ -341,6 +612,8 @@
         function drawRangeRings() {
             const w = HOUSE_WIDTH_IN * view.scale;
             const h = HOUSE_DEPTH_IN * view.scale;
+            const goodRadius = rangeInches(SIGNAL.GOOD) * view.scale;
+            const limitRadius = rangeInches(SIGNAL.LINK_MIN) * view.scale;
 
             ctx.save();
             ctx.beginPath();
@@ -354,24 +627,23 @@
 
                 ctx.setLineDash([6, 6]);
                 ctx.lineWidth = 1.5;
-                ctx.strokeStyle = active ? 'rgba(59,130,246,0.55)' : 'rgba(59,130,246,0.2)';
+                ctx.strokeStyle = active ? 'rgba(59,130,246,0.55)' : 'rgba(59,130,246,0.22)';
                 ctx.fillStyle = active ? 'rgba(59,130,246,0.06)' : 'rgba(59,130,246,0.025)';
                 ctx.beginPath();
-                ctx.arc(c.x, c.y, OPTIMAL_MAX_IN * view.scale, 0, Math.PI * 2);
+                ctx.arc(c.x, c.y, goodRadius, 0, Math.PI * 2);
                 ctx.fill();
                 ctx.stroke();
 
-                if (active) {
-                    ctx.strokeStyle = 'rgba(245,158,11,0.45)';
-                    ctx.beginPath();
-                    ctx.arc(c.x, c.y, OPTIMAL_MIN_IN * view.scale, 0, Math.PI * 2);
-                    ctx.stroke();
-                }
+                ctx.setLineDash([2, 6]);
+                ctx.strokeStyle = active ? 'rgba(244,63,94,0.45)' : 'rgba(244,63,94,0.15)';
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, limitRadius, 0, Math.PI * 2);
+                ctx.stroke();
             }
             ctx.restore();
         }
 
-        function drawDistanceLabel(text, x, y, color) {
+        function drawLinkLabel(text, x, y, color) {
             ctx.font = '10px ui-monospace, monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -382,56 +654,52 @@
             ctx.fillText(text, x, y);
         }
 
+        function drawLine(a, b, color, dash) {
+            const ca = toCanvas(a);
+            const cb = toCanvas(b);
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.8;
+            ctx.setLineDash(dash);
+            ctx.beginPath();
+            ctx.moveTo(ca.x, ca.y);
+            ctx.lineTo(cb.x, cb.y);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+            ctx.setLineDash([]);
+            return { x: (ca.x + cb.x) / 2, y: (ca.y + cb.y) / 2 };
+        }
+
         function drawLinks(analysis) {
             ctx.save();
             ctx.lineWidth = 2;
 
-            // Links that are within range (solid = same floor, dashed = across floors)
+            // Usable links (solid = same floor, dashed = across floors)
             for (let i = 0; i < nodes.length; i++) {
                 for (let j = i + 1; j < nodes.length; j++) {
                     const a = nodes[i];
                     const b = nodes[j];
                     if (a.floor !== currentFloor && b.floor !== currentFloor) continue;
 
+                    const rssi = predictRssi(a, b);
+                    if (rssi < SIGNAL.LINK_MIN) continue;
+
                     const d = distanceInches(a, b);
-                    if (d > OPTIMAL_MAX_IN) continue;
+                    let color = STATUS_UI.OPTIMAL.color;
+                    if (rssi < SIGNAL.GOOD) color = STATUS_UI.WEAK.color;
+                    else if (d < OPTIMAL_MIN_IN) color = STATUS_UI.CLOSE.color;
 
-                    const color = d < OPTIMAL_MIN_IN ? STATUS_UI.CLOSE.color : STATUS_UI.OPTIMAL.color;
-                    const ca = toCanvas(a);
-                    const cb = toCanvas(b);
-
-                    ctx.strokeStyle = color;
-                    ctx.globalAlpha = 0.75;
-                    ctx.setLineDash(a.floor === b.floor ? [] : [6, 6]);
-                    ctx.beginPath();
-                    ctx.moveTo(ca.x, ca.y);
-                    ctx.lineTo(cb.x, cb.y);
-                    ctx.stroke();
-
-                    ctx.globalAlpha = 1;
-                    ctx.setLineDash([]);
-                    drawDistanceLabel(formatFeet(d), (ca.x + cb.x) / 2, (ca.y + cb.y) / 2, color);
+                    const mid = drawLine(a, b, color, a.floor === b.floor ? [] : [6, 6]);
+                    drawLinkLabel(`${formatFeet(d)} · ${formatDbm(rssi)}`, mid.x, mid.y, color);
                 }
             }
 
-            // Out-of-range satellites: red dotted line to their nearest node
+            // Unreachable satellites: red dotted line to their nearest node
             for (const r of analysis.results) {
                 if (r.status !== 'FAR' || !r.nearest) continue;
                 if (r.node.floor !== currentFloor && r.nearest.floor !== currentFloor) continue;
-
-                const ca = toCanvas(r.node);
-                const cb = toCanvas(r.nearest);
-                ctx.strokeStyle = STATUS_UI.FAR.color;
-                ctx.globalAlpha = 0.8;
-                ctx.setLineDash([3, 6]);
-                ctx.beginPath();
-                ctx.moveTo(ca.x, ca.y);
-                ctx.lineTo(cb.x, cb.y);
-                ctx.stroke();
-
-                ctx.globalAlpha = 1;
-                ctx.setLineDash([]);
-                drawDistanceLabel(formatFeet(r.nearestDist), (ca.x + cb.x) / 2, (ca.y + cb.y) / 2, STATUS_UI.FAR.color);
+                const rssi = predictRssi(r.node, r.nearest);
+                const mid = drawLine(r.node, r.nearest, STATUS_UI.FAR.color, [3, 6]);
+                drawLinkLabel(`${formatFeet(r.nearestDist)} · ${formatDbm(rssi)}`, mid.x, mid.y, STATUS_UI.FAR.color);
             }
 
             ctx.restore();
@@ -569,6 +837,7 @@
             draggingNode = null;
             if (canvas.hasPointerCapture(evt.pointerId)) canvas.releasePointerCapture(evt.pointerId);
             canvas.style.cursor = hoverNode ? 'grab' : 'crosshair';
+            saveState();
             drawDashboard();
         }
 
@@ -611,12 +880,12 @@
         });
 
         // ---------------------------------------------------------------
-        // Node floor dropdowns
+        // Node floor dropdowns and layout reset
         // ---------------------------------------------------------------
         function buildNodeFloorControls() {
             const container = document.getElementById('nodeFloorControls');
 
-            nodes.forEach(node => {
+            nodeSelects = nodes.map(node => {
                 const row = document.createElement('label');
                 row.className = 'flex items-center justify-between text-sm text-slate-300';
                 row.textContent = node.id;
@@ -628,26 +897,499 @@
                     const option = document.createElement('option');
                     option.value = floor;
                     option.textContent = `Floor ${floor}`;
-                    option.selected = node.floor === floor;
                     select.appendChild(option);
                 });
+                select.value = String(node.floor);
 
                 select.addEventListener('change', () => {
                     node.floor = Number(select.value);
+                    saveState();
                     drawDashboard();
                 });
 
                 row.appendChild(select);
                 container.appendChild(row);
+                return select;
             });
         }
+
+        document.getElementById('resetLayout').addEventListener('click', () => {
+            nodes.forEach((node, i) => {
+                node.x = DEFAULT_NODES[i].x;
+                node.y = DEFAULT_NODES[i].y;
+                node.floor = DEFAULT_NODES[i].floor;
+                nodeSelects[i].value = String(node.floor);
+            });
+            saveState();
+            drawDashboard();
+        });
+
+        // ---------------------------------------------------------------
+        // Calibration: parsing readings
+        // ---------------------------------------------------------------
+        // Accepts "-52, -55, -54", "52 55 54" (minus added) or "78%" (Windows signal %)
+        function parseReadings(text) {
+            const cleaned = String(text).replace(/[−–—]/g, '-');
+            const values = [];
+
+            for (const token of cleaned.split(/[\s,;]+/)) {
+                if (!token) continue;
+                const isPercent = token.endsWith('%');
+                const number = Number(isPercent ? token.slice(0, -1) : token);
+
+                if (!Number.isFinite(number)) {
+                    return { error: `"${token}" is not a number` };
+                }
+                if (isPercent && (number < 0 || number > 100)) {
+                    return { error: `${token} must be between 0% and 100%` };
+                }
+
+                let dbm = isPercent ? number / 2 - 100 : number;
+                if (!isPercent && dbm > 0) dbm = -dbm;
+
+                if (dbm > -10 || dbm < -100) {
+                    return { error: `${token} is outside -10 to -100 dBm` };
+                }
+                values.push(dbm);
+            }
+
+            if (values.length === 0) return { empty: true };
+            const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+            return { values, avg };
+        }
+
+        // Rows that have a valid distance and at least one valid reading
+        function collectSamples() {
+            const samples = [];
+            for (const row of readings) {
+                const feet = Number(row.feet);
+                const parsed = parseReadings(row.rssi);
+                if (!(feet > 0) || parsed.error || parsed.empty) continue;
+                samples.push({ feet, meters: feet * METERS_PER_FOOT, rssi: parsed.avg, include: row.include });
+            }
+            return samples;
+        }
+
+        // ---------------------------------------------------------------
+        // Calibration: least-squares fit of A and n
+        // ---------------------------------------------------------------
+        //   rssi = A + n * x,  where  x = -10 * log10(distance in metres)
+        function fitPathLoss(samples) {
+            const xs = samples.map(s => -10 * Math.log10(s.meters));
+            const ys = samples.map(s => s.rssi);
+            const xMean = xs.reduce((a, b) => a + b, 0) / xs.length;
+            const yMean = ys.reduce((a, b) => a + b, 0) / ys.length;
+
+            const sxx = xs.reduce((sum, x) => sum + (x - xMean) ** 2, 0);
+            if (sxx < 1e-9) {
+                return { error: 'Readings need at least 2 different distances.' };
+            }
+
+            const n = xs.reduce((sum, x, i) => sum + (x - xMean) * (ys[i] - yMean), 0) / sxx;
+            const A = yMean - n * xMean;
+
+            const residuals = xs.map((x, i) => ys[i] - (A + n * x));
+            const ssRes = residuals.reduce((sum, r) => sum + r * r, 0);
+            const ssTot = ys.reduce((sum, y) => sum + (y - yMean) ** 2, 0);
+
+            return {
+                A,
+                n,
+                r2: ssTot > 0 ? 1 - ssRes / ssTot : 1,
+                rms: Math.sqrt(ssRes / samples.length),
+                count: samples.length
+            };
+        }
+
+        // ---------------------------------------------------------------
+        // Calibration: readings table
+        // ---------------------------------------------------------------
+        function makeCell(tr) {
+            const td = document.createElement('td');
+            td.className = 'py-1.5 pr-2 align-middle';
+            tr.appendChild(td);
+            return td;
+        }
+
+        function makeInput(type, value, extraClasses) {
+            const input = document.createElement('input');
+            input.type = type;
+            input.value = value;
+            input.className = `bg-slate-800 border border-slate-700 rounded-md px-2 py-1 text-slate-100 ${extraClasses}`;
+            return input;
+        }
+
+        function renderReadingsTable() {
+            readingsBody.replaceChildren();
+            rowCells = [];
+
+            readings.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-t border-slate-800';
+
+                const numberCell = makeCell(tr);
+                numberCell.textContent = String(index + 1);
+                numberCell.classList.add('text-slate-500');
+
+                const feetInput = makeInput('number', row.feet, 'w-20');
+                feetInput.min = '0.5';
+                feetInput.step = '0.5';
+                feetInput.setAttribute('aria-label', `Row ${index + 1} distance in feet`);
+                feetInput.addEventListener('input', () => {
+                    row.feet = feetInput.value;
+                    onReadingsEdited();
+                });
+                makeCell(tr).appendChild(feetInput);
+
+                const rssiInput = makeInput('text', row.rssi, 'w-full min-w-[160px]');
+                rssiInput.placeholder = '-52, -55, -54';
+                rssiInput.setAttribute('aria-label', `Row ${index + 1} signal readings`);
+                rssiInput.addEventListener('input', () => {
+                    row.rssi = rssiInput.value;
+                    onReadingsEdited();
+                });
+                makeCell(tr).appendChild(rssiInput);
+
+                const avgCell = makeCell(tr);
+                const fitCell = makeCell(tr);
+                const errorCell = makeCell(tr);
+
+                const useBox = document.createElement('input');
+                useBox.type = 'checkbox';
+                useBox.checked = row.include;
+                useBox.className = 'w-4 h-4 accent-blue-500';
+                useBox.setAttribute('aria-label', `Use row ${index + 1} in the fit`);
+                useBox.addEventListener('change', () => {
+                    row.include = useBox.checked;
+                    onReadingsEdited();
+                });
+                makeCell(tr).appendChild(useBox);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.textContent = '✕';
+                removeBtn.className = 'text-slate-500 hover:text-rose-400 px-2';
+                removeBtn.setAttribute('aria-label', `Remove row ${index + 1}`);
+                removeBtn.addEventListener('click', () => {
+                    readings.splice(index, 1);
+                    renderReadingsTable();
+                    onReadingsEdited();
+                });
+                makeCell(tr).appendChild(removeBtn);
+
+                readingsBody.appendChild(tr);
+                rowCells.push({ rssiInput, avgCell, fitCell, errorCell });
+            });
+
+            updateAllRowCells();
+        }
+
+        function updateAllRowCells() {
+            readings.forEach((row, index) => {
+                const cells = rowCells[index];
+                if (!cells) return;
+
+                const parsed = parseReadings(row.rssi);
+                cells.rssiInput.classList.toggle('border-rose-500', Boolean(parsed.error));
+                cells.rssiInput.title = parsed.error || '';
+
+                if (parsed.error) {
+                    cells.avgCell.textContent = 'Check';
+                    cells.avgCell.className = 'py-1.5 pr-2 text-rose-400';
+                } else {
+                    cells.avgCell.textContent = parsed.empty ? '—' : parsed.avg.toFixed(1);
+                    cells.avgCell.className = 'py-1.5 pr-2 text-slate-300 font-mono';
+                }
+
+                const feet = Number(row.feet);
+                if (pendingFit && !parsed.error && !parsed.empty && feet > 0) {
+                    const predicted = rssiAtMeters(feet * METERS_PER_FOOT, pendingFit.A, pendingFit.n);
+                    const error = parsed.avg - predicted;
+                    cells.fitCell.textContent = predicted.toFixed(1);
+                    cells.errorCell.textContent = `${error >= 0 ? '+' : ''}${error.toFixed(1)}`;
+                    cells.errorCell.className = `py-1.5 pr-2 font-mono ${Math.abs(error) > 6 ? 'text-amber-400' : 'text-slate-400'}`;
+                } else {
+                    cells.fitCell.textContent = '—';
+                    cells.errorCell.textContent = '—';
+                    cells.errorCell.className = 'py-1.5 pr-2 text-slate-500';
+                }
+                cells.fitCell.className = 'py-1.5 pr-2 text-slate-400 font-mono';
+            });
+        }
+
+        function onReadingsEdited() {
+            if (pendingFit) {
+                pendingFit = null;
+                applyFitBtn.disabled = true;
+                fitResultEl.innerHTML = '<p class="text-slate-400">Readings changed. Press <strong>Calculate fit</strong> again.</p>';
+            }
+            updateAllRowCells();
+            drawFitChart();
+            saveState();
+        }
+
+        document.getElementById('addReading').addEventListener('click', () => {
+            readings.push({ feet: '', rssi: '', include: true });
+            renderReadingsTable();
+            saveState();
+            const last = rowCells[rowCells.length - 1];
+            if (last) last.rssiInput.closest('tr').querySelector('input').focus();
+        });
+
+        // ---------------------------------------------------------------
+        // Calibration: calculate, apply, reset
+        // ---------------------------------------------------------------
+        function showFitMessage(html, tone) {
+            const color = tone === 'error' ? 'text-rose-400' : 'text-slate-300';
+            fitResultEl.innerHTML = `<p class="${color}">${html}</p>`;
+        }
+
+        function calculateFit() {
+            const badRows = readings.filter(r => parseReadings(r.rssi).error).length;
+            const used = collectSamples().filter(s => s.include);
+
+            if (badRows > 0) {
+                showFitMessage(`${badRows} row${badRows > 1 ? 's have' : ' has'} a reading that isn't a number. Fix the rows marked in red.`, 'error');
+                return;
+            }
+            if (used.length < 3) {
+                showFitMessage('Enter at least 3 rows with a distance and at least one reading, with <em>Use</em> ticked.', 'error');
+                return;
+            }
+
+            const fit = fitPathLoss(used);
+            if (fit.error) {
+                showFitMessage(fit.error, 'error');
+                return;
+            }
+
+            pendingFit = fit;
+            applyFitBtn.disabled = false;
+
+            const warnings = [];
+            if (fit.n < 1.6 || fit.n > 6) {
+                warnings.push(`A fade rate of ${fit.n.toFixed(2)} is unusual (homes are usually 2.5–4). Check all readings came from the same node and band.`);
+            }
+            if (fit.A > -20 || fit.A < -70) {
+                warnings.push(`A signal of ${fit.A.toFixed(1)} dBm at 1 m is unusual (usually −30 to −50). Check the distances are in feet.`);
+            }
+            if (fit.r2 < 0.7) {
+                warnings.push('The readings scatter a lot. Take more readings at each spot, or untick rows that went through walls.');
+            }
+
+            const goodRangeFt = Math.pow(10, (fit.A - SIGNAL.GOOD) / (10 * fit.n)) / METERS_PER_FOOT;
+
+            fitResultEl.innerHTML = `
+                <p class="text-slate-200">Signal at 1 m <strong class="font-mono">A = ${fit.A.toFixed(1)} dBm</strong> · fade rate <strong class="font-mono">n = ${fit.n.toFixed(2)}</strong></p>
+                <p class="text-slate-400">Fit quality: R² ${fit.r2.toFixed(2)} · typical error ±${fit.rms.toFixed(1)} dB · ${fit.count} readings</p>
+                <p class="text-slate-400">Good signal (${SIGNAL.GOOD} dBm) reaches about <strong class="text-slate-200">${goodRangeFt.toFixed(0)} ft</strong> on the same floor.</p>
+                ${warnings.map(w => `<p class="text-amber-400">⚠ ${w}</p>`).join('')}
+                <p class="text-slate-500">Press <strong>Apply to dashboard</strong> to use these values.</p>`;
+
+            updateAllRowCells();
+            drawFitChart();
+        }
+
+        function applyFit() {
+            if (!pendingFit) return;
+            model.A = pendingFit.A;
+            model.n = pendingFit.n;
+            model.source = 'calibrated';
+            model.fit = {
+                r2: pendingFit.r2,
+                rms: pendingFit.rms,
+                count: pendingFit.count,
+                date: new Date().toISOString().slice(0, 10)
+            };
+            applyFitBtn.disabled = true;
+            fitResultEl.insertAdjacentHTML('beforeend', '<p class="text-emerald-400 font-semibold">✓ Applied. The map now uses your calibrated values.</p>');
+
+            saveState();
+            renderModelSummary();
+            drawFitChart();
+            drawDashboard();
+        }
+
+        function resetModel() {
+            model = { ...DEFAULT_MODEL };
+            pendingFit = null;
+            applyFitBtn.disabled = true;
+            syncSettingsInputs();
+            showFitMessage('Model reset to default values. Your readings are kept.');
+
+            saveState();
+            updateAllRowCells();
+            renderModelSummary();
+            drawFitChart();
+            drawDashboard();
+        }
+
+        document.getElementById('calculateFit').addEventListener('click', calculateFit);
+        applyFitBtn.addEventListener('click', applyFit);
+        document.getElementById('resetModel').addEventListener('click', resetModel);
+
+        // ---------------------------------------------------------------
+        // Calibration: settings that apply straight away
+        // ---------------------------------------------------------------
+        function syncSettingsInputs() {
+            floorLossInput.value = String(model.floorLossDb);
+            planSpeedInput.value = String(model.planMbps);
+            backhaulInput.value = model.backhaul;
+        }
+
+        function onSettingsChanged() {
+            const floorLoss = Number(floorLossInput.value);
+            const plan = Number(planSpeedInput.value);
+            if (Number.isFinite(floorLoss)) model.floorLossDb = clamp(Math.round(floorLoss), 0, 40);
+            if (Number.isFinite(plan) && plan > 0) model.planMbps = clamp(Math.round(plan), 1, 10000);
+            model.backhaul = backhaulInput.value === 'dual' ? 'dual' : 'tri';
+            syncSettingsInputs();
+
+            saveState();
+            renderModelSummary();
+            drawDashboard();
+        }
+
+        floorLossInput.addEventListener('change', onSettingsChanged);
+        planSpeedInput.addEventListener('change', onSettingsChanged);
+        backhaulInput.addEventListener('change', onSettingsChanged);
+
+        // ---------------------------------------------------------------
+        // Calibration: chart of readings vs fitted curve
+        // ---------------------------------------------------------------
+        function drawFitChart() {
+            const rect = fitCanvas.getBoundingClientRect();
+            if (rect.width === 0 || rect.height === 0) return;
+
+            const dpr = window.devicePixelRatio || 1;
+            fitCanvas.width = Math.round(rect.width * dpr);
+            fitCanvas.height = Math.round(rect.height * dpr);
+            fitCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            const w = rect.width;
+            const h = rect.height;
+            const pad = { left: 44, right: 14, top: 12, bottom: 28 };
+            const c = fitCtx;
+            c.clearRect(0, 0, w, h);
+
+            const samples = collectSamples();
+            if (samples.length === 0) {
+                c.fillStyle = '#64748b';
+                c.font = '12px ui-sans-serif, system-ui, sans-serif';
+                c.textAlign = 'center';
+                c.textBaseline = 'middle';
+                c.fillText('Your readings will appear here', w / 2, h / 2);
+                return;
+            }
+
+            let minFt = Math.max(0.5, Math.min(...samples.map(s => s.feet)) / 1.5);
+            let maxFt = Math.max(...samples.map(s => s.feet)) * 1.5;
+            if (maxFt < minFt * 4) maxFt = minFt * 4;
+
+            const curves = [{ A: model.A, n: model.n, color: '#94a3b8', dash: [4, 4] }];
+            if (pendingFit) curves.push({ A: pendingFit.A, n: pendingFit.n, color: '#60a5fa', dash: [] });
+
+            const yValues = samples.map(s => s.rssi);
+            for (const curve of curves) {
+                yValues.push(rssiAtMeters(minFt * METERS_PER_FOOT, curve.A, curve.n));
+                yValues.push(rssiAtMeters(maxFt * METERS_PER_FOOT, curve.A, curve.n));
+            }
+            const yMax = Math.ceil((Math.max(...yValues) + 3) / 10) * 10;
+            const yMin = Math.floor((Math.min(...yValues) - 3) / 10) * 10;
+
+            const logMin = Math.log10(minFt);
+            const logMax = Math.log10(maxFt);
+            const xPos = ft => pad.left + (Math.log10(ft) - logMin) / (logMax - logMin) * (w - pad.left - pad.right);
+            const yPos = dbm => pad.top + (yMax - dbm) / (yMax - yMin) * (h - pad.top - pad.bottom);
+
+            // Grid and axis labels
+            c.font = '10px ui-monospace, monospace';
+            c.lineWidth = 1;
+            c.strokeStyle = 'rgba(148,163,184,0.12)';
+            c.fillStyle = '#64748b';
+
+            c.textAlign = 'right';
+            c.textBaseline = 'middle';
+            for (let dbm = yMin; dbm <= yMax; dbm += 10) {
+                const y = yPos(dbm);
+                c.beginPath();
+                c.moveTo(pad.left, y);
+                c.lineTo(w - pad.right, y);
+                c.stroke();
+                c.fillText(String(dbm), pad.left - 6, y);
+            }
+
+            c.textAlign = 'center';
+            c.textBaseline = 'top';
+            for (const ft of [1, 2, 3, 5, 10, 20, 30, 50, 100, 200]) {
+                if (ft < minFt || ft > maxFt) continue;
+                const x = xPos(ft);
+                c.beginPath();
+                c.moveTo(x, pad.top);
+                c.lineTo(x, h - pad.bottom);
+                c.stroke();
+                c.fillText(`${ft} ft`, x, h - pad.bottom + 6);
+            }
+
+            // Model curves
+            for (const curve of curves) {
+                c.strokeStyle = curve.color;
+                c.lineWidth = 2;
+                c.setLineDash(curve.dash);
+                c.beginPath();
+                for (let i = 0; i <= 60; i++) {
+                    const ft = Math.pow(10, logMin + (logMax - logMin) * i / 60);
+                    const x = xPos(ft);
+                    const y = yPos(rssiAtMeters(ft * METERS_PER_FOOT, curve.A, curve.n));
+                    if (i === 0) c.moveTo(x, y);
+                    else c.lineTo(x, y);
+                }
+                c.stroke();
+            }
+            c.setLineDash([]);
+
+            // Reading points
+            for (const s of samples) {
+                c.beginPath();
+                c.arc(xPos(s.feet), yPos(s.rssi), 4.5, 0, Math.PI * 2);
+                if (s.include) {
+                    c.fillStyle = '#3b82f6';
+                    c.fill();
+                } else {
+                    c.strokeStyle = '#94a3b8';
+                    c.lineWidth = 1.5;
+                    c.stroke();
+                }
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Calibration dialog open / close
+        // ---------------------------------------------------------------
+        document.getElementById('openCalibration').addEventListener('click', () => {
+            syncSettingsInputs();
+            dialog.showModal();
+            drawFitChart();
+        });
+
+        document.getElementById('closeCalibration').addEventListener('click', () => dialog.close());
+
+        // Clicking the dark backdrop closes the dialog
+        dialog.addEventListener('click', evt => {
+            if (evt.target === dialog) dialog.close();
+        });
 
         // ---------------------------------------------------------------
         // Start up
         // ---------------------------------------------------------------
+        loadState();
         buildNodeFloorControls();
+        renderReadingsTable();
+        syncSettingsInputs();
+        renderModelSummary();
         switchFloor(1);
         new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
+        new ResizeObserver(drawFitChart).observe(fitCanvas.parentElement);
     </script>
 </body>
 </html>
