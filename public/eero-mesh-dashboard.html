@@ -243,7 +243,7 @@
         <div class="flex items-center justify-between gap-2">
           <div>
             <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">Your eero Units</h2>
-            <p class="text-[11px] text-slate-400">Drag on the map, or type positions in feet from the top-left corner</p>
+            <p class="text-[11px] text-slate-400">Drag on the map, or type positions in feet from the left wall and the back wall</p>
           </div>
           <button type="button" id="addNodeBtn" class="px-3 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center gap-1 shadow-sm active:scale-95 transition shrink-0">
             <svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"></path></svg>
@@ -514,7 +514,7 @@ asyncio.run(main())
       // ---------------------------------------------------------------
       // Constants
       // ---------------------------------------------------------------
-      const STORAGE_KEY = 'eero-mesh-studio-v2';
+      const STORAGE_KEY = 'eero-mesh-studio-v3';
       const MAX_FLOORS = 3;
       const MAX_UNITS = 12;
       const FT_PER_METER = 3.28;
@@ -561,58 +561,63 @@ asyncio.run(main())
       };
 
       // Your house, traced from your hand-drawn floor sketches and stretched to the
-      // surveyed 20 x 40 ft footprint. x = feet from the left wall, y = feet from the front.
-      // Positions are approximate (the sketches aren't to scale).
+      // surveyed 20 x 40 ft footprint. Drawn the way the sketches are: back (porch) at
+      // the top, front door at the bottom, your left on the left.
+      // x = feet from the left wall, y = feet from the back wall. Positions are approximate.
       const MY_HOUSE = {
         width: 20,
         depth: 40,
         walls: {
           1: [
-            { x1: 0, y1: 13, x2: 20, y2: 13 },
-            { x1: 13.5, y1: 13, x2: 13.5, y2: 30 },
-            { x1: 0, y1: 19, x2: 13.5, y2: 19 },
-            { x1: 0, y1: 23, x2: 13.5, y2: 23 },
-            { x1: 0, y1: 30, x2: 20, y2: 30 }
+            { x1: 6.6, y1: 13.2, x2: 20, y2: 13.2 },
+            { x1: 6.6, y1: 13.2, x2: 6.6, y2: 40 },
+            { x1: 6.6, y1: 21.7, x2: 20, y2: 21.7 },
+            { x1: 6.6, y1: 27, x2: 20, y2: 27 },
+            { x1: 0, y1: 34.7, x2: 20, y2: 34.7 }
           ],
           2: [
-            { x1: 0, y1: 15, x2: 20, y2: 15 }
+            { x1: 0, y1: 9, x2: 4.3, y2: 9 },
+            { x1: 4.3, y1: 9, x2: 4.3, y2: 25.7 },
+            { x1: 0, y1: 18, x2: 4.3, y2: 18 },
+            { x1: 0, y1: 22, x2: 4.3, y2: 22 },
+            { x1: 8.1, y1: 29.5, x2: 8.1, y2: 35.3 },
+            { x1: 0, y1: 35.7, x2: 20, y2: 35.7 }
           ],
           3: [
-            { x1: 0, y1: 11, x2: 20, y2: 11 },
-            { x1: 9.5, y1: 11, x2: 9.5, y2: 18.5 },
-            { x1: 0, y1: 18.5, x2: 20, y2: 18.5 },
-            { x1: 16.5, y1: 18.5, x2: 16.5, y2: 24.5 },
-            { x1: 0, y1: 21, x2: 13.5, y2: 21 },
-            { x1: 6, y1: 21, x2: 6, y2: 24.5 },
-            { x1: 0, y1: 24.5, x2: 13.5, y2: 24.5 },
-            { x1: 13.5, y1: 21, x2: 13.5, y2: 26.5 },
-            { x1: 13.5, y1: 26.5, x2: 20, y2: 26.5 },
-            { x1: 0, y1: 32.5, x2: 20, y2: 32.5 }
+            { x1: 0, y1: 11.1, x2: 20, y2: 11.1 },
+            { x1: 3.7, y1: 11.1, x2: 3.7, y2: 26.4 },
+            { x1: 6.3, y1: 12.4, x2: 6.3, y2: 23.9 },
+            { x1: 6.3, y1: 15.3, x2: 20, y2: 15.3 },
+            { x1: 13.8, y1: 15.3, x2: 13.8, y2: 22.7 },
+            { x1: 6.3, y1: 22.7, x2: 13.8, y2: 22.7 },
+            { x1: 0, y1: 26.4, x2: 20, y2: 26.4 },
+            { x1: 10.9, y1: 26.4, x2: 10.9, y2: 40 }
           ]
         },
         rooms: {
           1: [
-            { x: 17, y: 10.5, label: 'Stairs' },
-            { x: 6.5, y: 16, label: 'Room' },
-            { x: 6.5, y: 21, label: 'Bath' },
-            { x: 16.75, y: 22, label: 'Hall' },
-            { x: 10, y: 35, label: 'Bedroom' }
+            { x: 12, y: 6.5, label: 'Bedroom' },
+            { x: 13, y: 24.3, label: 'Bath' },
+            { x: 13, y: 31, label: 'Room' },
+            { x: 3.3, y: 24, label: 'Hall' },
+            { x: 3.3, y: 37.3, label: 'Stairs' }
           ],
           2: [
-            { x: 10, y: 6, label: 'Front door' },
-            { x: 16.5, y: 18, label: 'Stairs' },
-            { x: 7, y: 20, label: 'Kitchen' },
-            { x: 10, y: 30, label: 'Living Room' }
+            { x: 11, y: 7, label: 'Living Room' },
+            { x: 2.2, y: 13.5, label: 'Restroom' },
+            { x: 2.2, y: 20, label: 'Closet' },
+            { x: 14, y: 24.3, label: 'Counter' },
+            { x: 13, y: 30.5, label: 'Kitchen' },
+            { x: 4, y: 31, label: 'Stairs' },
+            { x: 11, y: 37.9, label: 'Front Door' }
           ],
           3: [
-            { x: 10, y: 5.5, label: 'Shaded area' },
-            { x: 4.75, y: 14.75, label: 'Bedroom' },
-            { x: 14.75, y: 14.75, label: 'Bedroom' },
-            { x: 18.25, y: 21.5, label: 'Stairs' },
-            { x: 3, y: 22.75, label: 'Bath' },
-            { x: 9.75, y: 22.75, label: 'Bath' },
-            { x: 10, y: 29.5, label: 'Main Bedroom' },
-            { x: 10, y: 36.25, label: 'Shaded area' }
+            { x: 10, y: 5.5, label: 'Master Bed' },
+            { x: 1.85, y: 19, label: 'Stairs' },
+            { x: 10, y: 19, label: 'Master Bath' },
+            { x: 16.9, y: 20.5, label: 'Bath' },
+            { x: 5.4, y: 33, label: 'Bedroom' },
+            { x: 15.5, y: 33, label: 'Bedroom' }
           ]
         }
       };
@@ -626,9 +631,9 @@ asyncio.run(main())
       // Your three units, placed where your sketches show them
       function exampleNodes() {
         return [
-          { id: 'eero-1', name: 'Main eero', model: FALLBACK_MODEL, x: 2, y: 38.5, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
-          { id: 'eero-2', name: '2nd eero', model: FALLBACK_MODEL, x: 1.5, y: 32, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
-          { id: 'eero-3', name: '3rd eero', model: FALLBACK_MODEL, x: 15.5, y: 11.5, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
+          { id: 'eero-1', name: 'Main eero', model: FALLBACK_MODEL, x: 17.7, y: 2.1, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
+          { id: 'eero-2', name: '2nd eero', model: FALLBACK_MODEL, x: 18.4, y: 12.4, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
+          { id: 'eero-3', name: '3rd eero', model: FALLBACK_MODEL, x: 5.2, y: 37.1, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
         ];
       }
 
@@ -1443,6 +1448,17 @@ asyncio.run(main())
           ctx.restore();
         }
 
+        // Which end of the house is which
+        ctx.save();
+        ctx.font = '700 9px Inter, ui-sans-serif, system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.85)';
+        ctx.textBaseline = 'top';
+        ctx.fillText('BACK · PORCH', ox + w / 2, oy + 4);
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('FRONT', ox + w / 2, oy + h - 4);
+        ctx.restore();
+
         drawBackhaulLines(backhaul);
         if (state.isComparingAb && state.baselineSnapshot) drawBaselineGhosts();
         drawCalibrationPins();
@@ -1537,11 +1553,11 @@ asyncio.run(main())
             <div class="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-900">
               ${['x', 'y'].map(axis => `
                 <div class="bg-slate-900/90 rounded-lg p-1.5 flex items-center justify-between gap-1 border border-slate-800/80">
-                  <span class="text-[10px] text-slate-400 font-medium pl-1">${axis === 'x' ? 'From left' : 'From top'}</span>
+                  <span class="text-[10px] text-slate-400 font-medium pl-1">${axis === 'x' ? 'From left' : 'From back'}</span>
                   <div class="flex items-center gap-1">
-                    <button type="button" data-id="${id}" data-axis="${axis}" data-step="-1" class="coord-step-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold active:scale-90" aria-label="${axis === 'x' ? 'Move left' : 'Move up'} 1 foot">-</button>
-                    <input type="number" step="0.5" min="0" max="${axis === 'x' ? state.houseWidth : state.houseDepth}" value="${node[axis].toFixed(1)}" data-id="${id}" data-axis="${axis}" id="${axis}-val-${id}" aria-label="${axis === 'x' ? 'Feet from left wall' : 'Feet from top wall'}" class="coord-input w-14 bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center font-mono text-xs font-bold text-cyan-300">
-                    <button type="button" data-id="${id}" data-axis="${axis}" data-step="1" class="coord-step-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold active:scale-90" aria-label="${axis === 'x' ? 'Move right' : 'Move down'} 1 foot">+</button>
+                    <button type="button" data-id="${id}" data-axis="${axis}" data-step="-1" class="coord-step-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold active:scale-90" aria-label="${axis === 'x' ? 'Move left' : 'Move toward back'} 1 foot">-</button>
+                    <input type="number" step="0.5" min="0" max="${axis === 'x' ? state.houseWidth : state.houseDepth}" value="${node[axis].toFixed(1)}" data-id="${id}" data-axis="${axis}" id="${axis}-val-${id}" aria-label="${axis === 'x' ? 'Feet from left wall' : 'Feet from back wall'}" class="coord-input w-14 bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-center font-mono text-xs font-bold text-cyan-300">
+                    <button type="button" data-id="${id}" data-axis="${axis}" data-step="1" class="coord-step-btn w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs font-bold active:scale-90" aria-label="${axis === 'x' ? 'Move right' : 'Move toward front'} 1 foot">+</button>
                   </div>
                 </div>`).join('')}
             </div>
