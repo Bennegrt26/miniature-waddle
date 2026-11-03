@@ -563,16 +563,17 @@ asyncio.run(main())
 
       function exampleNodes() {
         return [
-          { id: 'eero-1', name: 'Living Room', model: 'eero Pro 6E', x: 9, y: 18, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
-          { id: 'eero-2', name: 'Upstairs Hall', model: 'eero Pro 6E', x: 16, y: 19, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
-          { id: 'eero-3', name: 'Top Floor Hall', model: 'eero 6+', x: 9, y: 21, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
+          { id: 'eero-1', name: 'Living Room', model: 'eero Pro 6E', x: 10, y: 12, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
+          { id: 'eero-2', name: 'Upstairs Hall', model: 'eero Pro 6E', x: 10, y: 22, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
+          { id: 'eero-3', name: 'Top Floor Hall', model: 'eero 6+', x: 10, y: 30, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
         ];
       }
 
       function defaultState() {
         return {
-          houseWidth: 50,
-          houseDepth: 36,
+          // 20 x 40 ft three-story townhouse footprint (from the property survey)
+          houseWidth: 20,
+          houseDepth: 40,
           floorCount: 3,
           floorHeightFt: 10,
           floorLossDb: DEFAULT_MODEL.floorLossDb,
@@ -581,7 +582,7 @@ asyncio.run(main())
           lossPerWall: DEFAULT_MODEL.lossPerWall,
           pathLossExponent: DEFAULT_MODEL.n,
           refRssi: DEFAULT_MODEL.refRssi,
-          floorPresets: { 1: 'open', 2: '3bed', 3: '3bed' },
+          floorPresets: { 1: 'empty', 2: 'empty', 3: 'empty' },
           wallsByFloor: { 1: [], 2: [], 3: [] },
           showWalls: true,
           visualMode: 'heatmap',
@@ -1031,7 +1032,7 @@ asyncio.run(main())
         state.nodes.forEach(n => {
           const link = backhaul.info.get(n.id);
           if (!link || link.wired) return;
-          if (worst === null || link.rssi < worst) worst = link.rssi;
+          if (worst === null || link.rssi < worst) worst = Math.round(link.rssi);
         });
         const bhText = $('kpiBackhaulText');
         const bhDot = $('backhaulDot');
@@ -1113,7 +1114,7 @@ asyncio.run(main())
         if (rect.width === 0 || rect.height === 0) return;
         const dpr = window.devicePixelRatio || 1;
 
-        const padLeft = 34, padTop = 48, padRight = 18, padBottom = 50;
+        const padLeft = 34, padTop = 58, padRight = 18, padBottom = 50;
         const availW = Math.max(120, rect.width - padLeft - padRight);
         const availH = Math.max(100, rect.height - padTop - padBottom);
         const scale = Math.max(2, Math.min(availW / state.houseWidth, availH / state.houseDepth));
@@ -2072,7 +2073,7 @@ asyncio.run(main())
         });
         document.querySelectorAll('.imode-btn').forEach(b => {
           const active = b.dataset.imode === state.interactionMode;
-          b.className = `imode-btn flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition ${active ? 'font-semibold bg-cyan-500 text-slate-950 shadow-sm' : 'font-medium text-slate-300 hover:text-white'}`;
+          b.className = `imode-btn whitespace-nowrap flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] transition ${active ? 'font-semibold bg-cyan-500 text-slate-950 shadow-sm' : 'font-medium text-slate-300 hover:text-white'}`;
         });
         renderFitSummary();
       }
