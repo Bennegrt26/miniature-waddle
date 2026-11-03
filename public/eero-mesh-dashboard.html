@@ -399,6 +399,7 @@ asyncio.run(main())
             </label>
           </div>
           <div class="flex flex-wrap items-center gap-1">
+            <button type="button" data-preset="mine" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">My House</button>
             <button type="button" data-preset="3bed" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">3-Bed Layout</button>
             <button type="button" data-preset="open" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">Open Plan</button>
             <button type="button" data-preset="empty" class="layout-preset-btn px-2 py-1 rounded text-[10px] border">No Walls</button>
@@ -513,7 +514,7 @@ asyncio.run(main())
       // ---------------------------------------------------------------
       // Constants
       // ---------------------------------------------------------------
-      const STORAGE_KEY = 'eero-mesh-studio-v1';
+      const STORAGE_KEY = 'eero-mesh-studio-v2';
       const MAX_FLOORS = 3;
       const MAX_UNITS = 12;
       const FT_PER_METER = 3.28;
@@ -559,13 +560,75 @@ asyncio.run(main())
         'empty': []
       };
 
+      // Your house, traced from your hand-drawn floor sketches and stretched to the
+      // surveyed 20 x 40 ft footprint. x = feet from the left wall, y = feet from the front.
+      // Positions are approximate (the sketches aren't to scale).
+      const MY_HOUSE = {
+        width: 20,
+        depth: 40,
+        walls: {
+          1: [
+            { x1: 0, y1: 13, x2: 20, y2: 13 },
+            { x1: 13.5, y1: 13, x2: 13.5, y2: 30 },
+            { x1: 0, y1: 19, x2: 13.5, y2: 19 },
+            { x1: 0, y1: 23, x2: 13.5, y2: 23 },
+            { x1: 0, y1: 30, x2: 20, y2: 30 }
+          ],
+          2: [
+            { x1: 0, y1: 15, x2: 20, y2: 15 }
+          ],
+          3: [
+            { x1: 0, y1: 11, x2: 20, y2: 11 },
+            { x1: 9.5, y1: 11, x2: 9.5, y2: 18.5 },
+            { x1: 0, y1: 18.5, x2: 20, y2: 18.5 },
+            { x1: 16.5, y1: 18.5, x2: 16.5, y2: 24.5 },
+            { x1: 0, y1: 21, x2: 13.5, y2: 21 },
+            { x1: 6, y1: 21, x2: 6, y2: 24.5 },
+            { x1: 0, y1: 24.5, x2: 13.5, y2: 24.5 },
+            { x1: 13.5, y1: 21, x2: 13.5, y2: 26.5 },
+            { x1: 13.5, y1: 26.5, x2: 20, y2: 26.5 },
+            { x1: 0, y1: 32.5, x2: 20, y2: 32.5 }
+          ]
+        },
+        rooms: {
+          1: [
+            { x: 17, y: 10.5, label: 'Stairs' },
+            { x: 6.5, y: 16, label: 'Room' },
+            { x: 6.5, y: 21, label: 'Bath' },
+            { x: 16.75, y: 22, label: 'Hall' },
+            { x: 10, y: 35, label: 'Bedroom' }
+          ],
+          2: [
+            { x: 10, y: 6, label: 'Front door' },
+            { x: 16.5, y: 18, label: 'Stairs' },
+            { x: 7, y: 20, label: 'Kitchen' },
+            { x: 10, y: 30, label: 'Living Room' }
+          ],
+          3: [
+            { x: 10, y: 5.5, label: 'Shaded area' },
+            { x: 4.75, y: 14.75, label: 'Bedroom' },
+            { x: 14.75, y: 14.75, label: 'Bedroom' },
+            { x: 18.25, y: 21.5, label: 'Stairs' },
+            { x: 3, y: 22.75, label: 'Bath' },
+            { x: 9.75, y: 22.75, label: 'Bath' },
+            { x: 10, y: 29.5, label: 'Main Bedroom' },
+            { x: 10, y: 36.25, label: 'Shaded area' }
+          ]
+        }
+      };
+
+      function isValidPreset(key) {
+        return key === 'mine' || Object.prototype.hasOwnProperty.call(PRESET_LAYOUTS, key);
+      }
+
       const DEFAULT_MODEL = { refRssi: -38.5, n: 2.85, lossPerWall: 3.5, floorLossDb: 10 };
 
+      // Your three units, placed where your sketches show them
       function exampleNodes() {
         return [
-          { id: 'eero-1', name: 'Living Room', model: 'eero Pro 6E', x: 10, y: 12, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
-          { id: 'eero-2', name: 'Upstairs Hall', model: 'eero Pro 6E', x: 10, y: 22, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
-          { id: 'eero-3', name: 'Top Floor Hall', model: 'eero 6+', x: 10, y: 30, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
+          { id: 'eero-1', name: 'Main eero', model: FALLBACK_MODEL, x: 2, y: 38.5, floor: 1, isGateway: true, isWired: true, status: 'green', mac: '', color: '#06b6d4' },
+          { id: 'eero-2', name: '2nd eero', model: FALLBACK_MODEL, x: 1.5, y: 32, floor: 2, isGateway: false, isWired: false, status: 'green', mac: '', color: '#3b82f6' },
+          { id: 'eero-3', name: '3rd eero', model: FALLBACK_MODEL, x: 15.5, y: 11.5, floor: 3, isGateway: false, isWired: false, status: 'green', mac: '', color: '#8b5cf6' }
         ];
       }
 
@@ -582,7 +645,7 @@ asyncio.run(main())
           lossPerWall: DEFAULT_MODEL.lossPerWall,
           pathLossExponent: DEFAULT_MODEL.n,
           refRssi: DEFAULT_MODEL.refRssi,
-          floorPresets: { 1: 'empty', 2: 'empty', 3: 'empty' },
+          floorPresets: { 1: 'mine', 2: 'mine', 3: 'mine' },
           wallsByFloor: { 1: [], 2: [], 3: [] },
           showWalls: true,
           visualMode: 'heatmap',
@@ -593,7 +656,7 @@ asyncio.run(main())
           activePinId: null,
           probePoint: null,
           nodes: exampleNodes(),
-          nodesAreExample: true,
+          nodesAreExample: false,
           calibrationPins: [],
           lastFit: null,
           baselineSnapshot: null
@@ -745,7 +808,7 @@ asyncio.run(main())
 
         if (saved.floorPresets && typeof saved.floorPresets === 'object') {
           for (let f = 1; f <= MAX_FLOORS; f++) {
-            if (PRESET_LAYOUTS[saved.floorPresets[f]]) state.floorPresets[f] = saved.floorPresets[f];
+            if (isValidPreset(saved.floorPresets[f])) state.floorPresets[f] = saved.floorPresets[f];
           }
         }
 
@@ -788,6 +851,14 @@ asyncio.run(main())
       // Walls (one layout per floor)
       // ---------------------------------------------------------------
       function buildWallsForFloor(floor) {
+        if (state.floorPresets[floor] === 'mine') {
+          const sx = state.houseWidth / MY_HOUSE.width;
+          const sy = state.houseDepth / MY_HOUSE.depth;
+          state.wallsByFloor[floor] = (MY_HOUSE.walls[floor] || []).map(w => ({
+            x1: w.x1 * sx, y1: w.y1 * sy, x2: w.x2 * sx, y2: w.y2 * sy, label: ''
+          }));
+          return;
+        }
         const template = PRESET_LAYOUTS[state.floorPresets[floor]] || [];
         state.wallsByFloor[floor] = template.map(w => ({
           x1: (w.x1 / 50) * state.houseWidth,
@@ -1354,6 +1425,20 @@ asyncio.run(main())
               ctx.textBaseline = 'alphabetic';
               ctx.fillText(wall.label, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2 - 5);
             }
+          });
+          ctx.restore();
+        }
+
+        if (state.floorPresets[state.currentFloor] === 'mine') {
+          const rooms = MY_HOUSE.rooms[state.currentFloor] || [];
+          ctx.save();
+          ctx.font = `600 ${scale >= 9 ? 10 : 9}px Inter, ui-sans-serif, system-ui, sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = 'rgba(241, 245, 249, 0.6)';
+          rooms.forEach(room => {
+            const p = ftToPx(room.x * state.houseWidth / MY_HOUSE.width, room.y * state.houseDepth / MY_HOUSE.depth);
+            ctx.fillText(room.label, p.x, p.y);
           });
           ctx.restore();
         }
